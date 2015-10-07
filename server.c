@@ -12,8 +12,9 @@
 #include "tokenize.c" //To test this file "standalone" use 'tokenize_proof.c'
 
 /* ERROR Codes, as structured:
-111 = invalid input file; history file not found or not opened successfully;
+111 = history file not found or not opened successfully;
 222 = error during history file validation
+333 = input file not found
 */
 
 //Program Constants:
@@ -35,27 +36,44 @@ typedef struct{
     char *end;
 }history;
 
-//Function Declarations:
-int process_history(history currentHistory);
-int createFreshHistory ();
 
-//MAIN-----------------------------------------------
-int main(int argc, char* argv[])
-{
-    //Initialize Program Status
-    int status = 0; 
-    //Declare current history struct
-    history currentHistory; 
+//Function for creating a new blank history file when was is not already present
+int createFreshHistory () {
+    FILE *historyFile;
+    int returncode = 0;
 
-    //Create Fresh history directly -- for testing
-//    createFreshHistory();
+    //Make directory if not already present on system
+    struct stat st ={0};
+    if (stat(historyFolderLocation, &st) == -1) {
+        mkdir(historyFolderLocation, 0700);
+    }
 
-    //Process history file
-    status = process_history(currentHistory);
-    
-    return status;
+    //Open file
+    historyFile = fopen(historyFilePath, "w+");
 
+    //Write Base structure
+    unsigned char mybufin[1000] = "VALID\n0\nNA\nNA\nNA\nNA\nNA\nEND_OF_FILE\n";
+    unsigned char filler[] ="aaaa";
+
+    //Pad to length=1000
+    int i;
+    int length = strlen( mybufin );
+    for ( i = length; i < 1000; i = i + 1) {
+        mybufin[i] = filler[1];
+    }
+
+    //Create pointer to input buffer just created
+    unsigned char *mybufinptr = (unsigned char *)&mybufin;
+
+    //Encrypt buffer and write to file
+    //printf("\nBEGINNING ENCRYPTION; Starting with...\nInput Buffer: %s\n",mybufinptr);
+    printf("Encrypting 'empty' history to file '%s'\n", historyFilePath);
+    returncode = encrypt_buf_to_file(mybufinptr, historyFile);
+    fclose(historyFile);
+    printf("Encryption Completed\n");
+    printf("Fresh history file created.\n");
 }
+
 
 // Function processing history file stored in fixed location 
 int process_history(history currentHistory) {
@@ -115,39 +133,106 @@ int process_history(history currentHistory) {
     return history_status;
 }
 
-//Function for creating a new blank history file when was is not already present
-int createFreshHistory () {
-    FILE *historyFile; 
-    int returncode = 0;
 
-    //Make directory if not already present on system
-    struct stat st ={0};
-    if (stat(historyFolderLocation, &st) == -1) {
-        mkdir(historyFolderLocation, 0700);
+//Verifies each password/feature pair; returns 1 if good password; returns 0 if bad password
+int verifyPassword(char* pwd, char* feats) {
+    
+    int status = 0;
+
+    /////////////////////////////
+    //INITIALIZATION
+    /////////////////////////////
+
+    //Select 160-bit prime value q
+    //INSERT FUNCTION HERE
+    int q = 33;  // temporary
+
+    //Determine Maximum number of distinguising features, m, then select polynomial f of degree m-1
+    //INSERT FUNCTION HERE
+
+    //Using polynomial f, generate instruction table, such that all alpha and bravo values are valid
+    //INSERT FUNCTION HERE
+
+    //Create a fixed sized History file. Select its size, pad it, encrypt it with Hpwd.
+    history currentHistory; 			//Declare current history struct
+    status = process_history(currentHistory);	//process history file
+
+    return 1;
+
+}
+
+
+//Processes input file from beginning to end; calls verifyPassword() for each password/feature pair
+int processInput(char* argv[], char* pwd, char* feats) {
+
+    //Open Input File
+    FILE *f = fopen(argv[1], "r");
+    //Open Output File
+    FILE *output = fopen(argv[2], "w+");
+
+    char buff[200]; //Extra/temporary buffer used during transfer
+    int status = 0;
+    int verified;
+
+    if (!f) {
+        printf("INPUT FILE NOT FOUND\n");
+	status = 333;
+    } else {
+        int i = 1;
+        while (fgets(buff, 200, f) != NULL) {
+            if (i % 2) {
+                //If i is odd do this:
+                strcpy(pwd, buff);
+                printf("ODD: %s\n",buff);
+                //Password i has now been copied out.
+
+            } else {
+                //Else, i.e., if i is even do this:
+                strcpy(feats, buff);
+                printf("EVEN: %s\n", buff);
+                //Features i have now been copied out; time to verify
+                verified = verifyPassword(pwd, feats);
+                printf("STATUS: %d\n",status);
+                if (verified == 1) {
+                    fputs("1\n", output);
+                } else {
+                    fputs("0\n", output);
+                }
+                printf("Password/Feature #%d verified\n", i/2);
+            }
+            i = i + 1;
+        }
+        printf("End of input file.\n");
     }
-    
-    //Open file
-    historyFile = fopen(historyFilePath, "w+");
-    
-    //Write Base structure
-    unsigned char mybufin[1000] = "VALID\n0\nNA\nNA\nNA\nNA\nNA\nEND_OF_FILE\n";
-    unsigned char filler[] ="aaaa";
+    fclose(f);
+    fclose(output);
+    printf("Function readInput() complete.\n");
+    return status;
+}
 
-    //Pad to length=1000
-    int i;
-    int length = strlen( mybufin );
-    for ( i = length; i < 1000; i = i + 1) {
-        mybufin[i] = filler[1];
+
+//MAIN-----------------------------------------------
+int main(int argc, char* argv[])
+{
+    //Verify correct arguments
+    if (argc != 3) {
+        printf("ERROR: Incorrect arguments\nformat:\n");
+        printf("./program inputfile.txt outputfile.txt\n\nEXITING\n");
+        return 0;
     }
-    
-    //Create pointer to input buffer just created
-    unsigned char *mybufinptr = (unsigned char *)&mybufin;
 
-    //Encrypt buffer and write to file
-    //printf("\nBEGINNING ENCRYPTION; Starting with...\nInput Buffer: %s\n",mybufinptr);
-    printf("Encrypting 'empty' history to file '%s'\n", historyFilePath);
-    returncode = encrypt_buf_to_file(mybufinptr, historyFile);
-    fclose(historyFile);
-    printf("Encryption Completed\n");
-    printf("Fresh history file created.\n");
+    //Initialize Program Status
+    int status = 0;
+
+    //Declare buffers to hold password and features
+    char password[200];
+    char *pwd = (char *)&password;
+    char features[200];
+    char *feats = (char *)&features;
+
+
+    status = processInput(argv, pwd, feats);
+    
+    return status;
+
 }
