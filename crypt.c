@@ -2,13 +2,12 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <string.h>
-
+#include "utilities.h"
+#include "utilities.c"
 
 //Function Declarations:
 int decrypt_file_to_buf(FILE *in, unsigned char *mybufout);
 int encrypt_buf_to_file(unsigned char *mybufin, FILE *out);
-int copy_in(unsigned char *source, unsigned char *target, int rnd, int length);
-void copy_out(unsigned char *source, unsigned char *target, int rnd, int length, int outlength);
 
 //DECRYPT FROM FILE TO BUFFER
 int decrypt_file_to_buf(FILE *in, unsigned char *mybufout) {
@@ -104,35 +103,6 @@ int encrypt_buf_to_file(unsigned char *mybufin, FILE *out) {
         EVP_CIPHER_CTX_cleanup(&ctx);
 
         return 1;
-}
-
-/* Copies string up to length 'length' from source to target; position within 
-   string source can change depending upon with round, 'rnd'; position within 
-   string target is always at the beginning of the string */
-int copy_in(unsigned char *source, unsigned char *target, int rnd, int length) {
-        int c = (rnd - 1) * length;
-	int d = 0;
-        int end = c + length;
-        while (source[c] != '\0' && c < end ) {
-                target[d] = source[c];
-                c++;
-                d++;
-        }
-        target[c] = '\0';
-	return d;
-}
-
-//Copies string up to length outlength from source to target
-void copy_out(unsigned char *source, unsigned char *target, int rnd, int length, int outlength) {
-        int c = (rnd - 1) * length;
-	int d = 0;
-	int end = outlength;
-        while ( source[d] != '\0' && d < end ) {
-                target[c] = source[d];
-                c++;
-		d++;
-        }
-        target[c] = '\0';
 }
 
 // MAIN for testing -- un-comment to run crypt.c by itself

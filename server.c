@@ -8,14 +8,17 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "crypt.c" //To test this file "standalone" use 'crypt_proof.c'
-#include "tokenize.c" //To test this file "standalone" use 'tokenize_proof.c'
+#include "crypt.c" //crypt_standalone.c is the same with 'main' added for testing
+#include "tokenize.c" //tokenize_standalone.c is the same with 'main' added for testing
+#include "utilities.h"
+#include "server.h"
 
 /* ERROR Codes, as structured:
 111 = history file not found or not opened successfully;
 222 = error during history file validation
 333 = input file not found
 */
+
 
 //Program Constants:
 char const historyFolderLocation[] = "./history"; // ensure path here is also on below line
@@ -24,20 +27,8 @@ char const validationString[] = "VALID\n";
 char const endFileString[] = "END_OF_FILE\n";
 int const historyFileSize = 1200;
 
-//Type Definitions:
-typedef struct{
-    char *validation;
-    char *size;
-    char *line1;
-    char *line2;
-    char *line3;
-    char *line4;
-    char *line5;
-    char *end;
-}history;
 
-
-//Function for creating a new blank history file when was is not already present
+//Function for creating a new blank history file when it was not already present
 int createFreshHistory () {
     FILE *historyFile;
     int returncode = 0;
@@ -133,29 +124,47 @@ int process_history(history currentHistory) {
     return history_status;
 }
 
+//PLACEHOLDER FOR Pr Function
+int PR(int r, int x) {
+    int y = x*r;
+    return y;
+}
+
+//PLACEHOLDER FOR Gr Function
+int GR(int r, int x, char* pswd) {
+    int y = x*r+strlen(pswd);
+    return y;
+}
+
+//Function for calculating all alpha column values as valid
+void computeAlpha(long* alpha, int numfeatures, char* password, int q, int r) {
+
+    int i;
+    for (i = 1; i <= numfeatures; i++) {
+        alpha[i-1] = PR(r, i*2) + ( GR(r, i*2, password) % q );
+    }
+    printf("Alpha Column initialized.\n");
+};
+
+//Function for calculating all alpha column values as valid
+void computeBravo(long* bravo, int numfeatures, char* password, int q, int r) {
+
+    int i;
+    for (i = 1; i <= numfeatures; i++) {
+        bravo[i-1] = PR(r, i*2+1) + ( GR(r, i*2+1, password) % q );
+    }
+    printf("Bravo Column initialized.\n");
+};
 
 //Verifies each password/feature pair; returns 1 if good password; returns 0 if bad password
 int verifyPassword(char* pwd, char* feats) {
     
     int status = 0;
 
-    /////////////////////////////
-    //INITIALIZATION
-    /////////////////////////////
-
-    //Select 160-bit prime value q
-    //INSERT FUNCTION HERE
-    int q = 33;  // temporary
-
-    //Determine Maximum number of distinguising features, m, then select polynomial f of degree m-1
-    //INSERT FUNCTION HERE
-
-    //Using polynomial f, generate instruction table, such that all alpha and bravo values are valid
-    //INSERT FUNCTION HERE
-
-    //Create a fixed sized History file. Select its size, pad it, encrypt it with Hpwd.
     history currentHistory; 			//Declare current history struct
     status = process_history(currentHistory);	//process history file
+
+    //ADD LOGIC HERE
 
     return 1;
 
@@ -211,9 +220,102 @@ int processInput(char* argv[], char* pwd, char* feats) {
 }
 
 
+//Runs program initialization sequence
+int initProgram(char* argv[]) {
+    int status = 0;
+    /////////////////////////////
+    //INITIALIZATION
+    /////////////////////////////
+    printf("Beginning Initialization.\n");
+
+    /* FIRST, get initial password and features from input file */
+    //Open Input File, then get first line (password)
+    FILE *f = fopen(argv[1], "r");
+    char buff[200]; //Extra/temporary buffer used during transfer
+    if (!f) {
+        printf("INPUT FILE NOT FOUND\n");
+        status = 333;
+    } else {
+        fgets(buff, 200, f);
+    }
+    int pwdlen = strlen(buff);
+    char password[pwdlen];
+    pwdlen = copy_pwd(password, buff);
+    printf("Password:>>>%s<<<\nLength: %d\n", password, pwdlen);
+    //Get second line (features)
+    fgets(buff, 200, f);
+    int fealen = strlen(buff);
+    char featurestr[fealen];
+    char *featureString = featurestr;
+    fealen = copy_pwd(featureString, buff);
+    printf("Features: %s\n", featureString);
+    int features[127];
+    int numfeatures = str_to_ints(featureString, features);
+    printf("Number of Features: %d\n",numfeatures);
+    int i;
+    printf("Features Stored as Integers:\n|");
+    for ( i = 0; i < numfeatures; i++) {
+        printf(" %d |",features[i]);
+    }
+
+
+    /* SECOND, select 160-bit prime value q; also select random Hpwd where
+       Hpwd < q; note, h is fixed at 5; also select 160-bit value r that 
+       will be stored for future use after initialization */
+    //INSERT FUNCTION HERE
+    int q = 33;  // temporary
+    printf("\nq: %d\n",q);
+    int r = 42;  // temporary
+    printf("r: %d\n",r);
+
+
+    /* THIRD, determine Maximum number of distinguising features, m,
+       then select polynomial f of degree m-1 */
+    printf("Distinguishing Features: %d\n", numfeatures);
+    printf("Selecting Polynomial of degree: %d\n", numfeatures-1);
+    //INSERT FUNCTION HERE
+    //Select polynomial f of degree m-1
+    //f(0) will give us our initial hpwd
+    long hpwd = 1234567890; //temporary; use f polynomial
+    printf("Random hpwd: %lu\n", hpwd);
+
+
+    /* FOURTH, using polynomial f, generate instruction table, such that 
+       all alpha and bravo values are valid */
+    //INSERT FUNCTION HERE
+//    status = genInstructionTable();
+    long alphatable[numfeatures];
+    long bravotable[numfeatures];
+    long *alpha = alphatable;
+    long *bravo = bravotable;
+    computeAlpha(alpha, numfeatures, password, q, r);
+    computeBravo(bravo, numfeatures, password, q, r);
+    //Display Table:
+    printf("Instruction Table:\n");
+    for (i = 0; i < numfeatures; i++) {
+        printf("{%d, %lu, %lu}\n",i+1,alpha[i],bravo[i]);
+    }
+    printf("End of Instruction Table.\n");
+
+
+    /* FIFTH, initialize history file; if a history file is present already, 
+       this is open decrypt, verify; if not present, this will create a new
+       empty history file */
+    history currentHistory;                     //Declare current history struct
+    status = process_history(currentHistory);   //process history file
+
+    printf("\nEnd of Initialization\n");
+
+  return status;
+}
+
+
+
 //MAIN-----------------------------------------------
 int main(int argc, char* argv[])
 {
+    printf("Beginning 'Server' execution.\n");
+
     //Verify correct arguments
     if (argc != 3) {
         printf("ERROR: Incorrect arguments\nformat:\n");
@@ -230,8 +332,11 @@ int main(int argc, char* argv[])
     char features[200];
     char *feats = (char *)&features;
 
+    //Run Program Initialization
+    status = initProgram(argv);
 
-    status = processInput(argv, pwd, feats);
+    //Process input file to verify each password
+//    status = processInput(argv, pwd, feats);
     
     return status;
 

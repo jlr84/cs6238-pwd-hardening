@@ -2,21 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "server.h"
 
-//Type Definition; this is the same as in 'server.c'; only placed here for testing
-typedef struct{
-    char *validation;
-    char *size;
-    char *line1;
-    char *line2;
-    char *line3;
-    char *line4;
-    char *line5;
-    char *end;
-}history;
-
-//Function declarations;
-char** str_split(char* a_str, const char a_delim);
 
 //STRING SPLIT - Split string based on delimiter
 char** str_split(char* a_str, const char a_delim)
@@ -68,6 +55,67 @@ char** str_split(char* a_str, const char a_delim)
 }
 
 
+///ALTERNATE STRING SPLIT - Splits string to tokens based on delimiter
+char **str_split_alt(const char* str, const char* delim, size_t* numtokens) {
+
+    // copy the original string so that we don't overwrite parts of it
+    // (don't do this if you don't need to keep the old line,
+    // as this is less efficient)
+    char *s = strdup(str);
+
+    // these three variables are part of a very common idiom to
+    // implement a dynamically-growing array
+
+    size_t tokens_alloc = 1;
+    size_t tokens_used = 0;
+    char **tokens = calloc(tokens_alloc, sizeof(char*));
+    char *token, *strtok_ctx;
+    for (token = strtok_r(s, delim, &strtok_ctx);
+            token != NULL;
+            token = strtok_r(NULL, delim, &strtok_ctx)) {
+        // check if we need to allocate more space for tokens
+        if (tokens_used == tokens_alloc) {
+            tokens_alloc *= 2;
+            tokens = realloc(tokens, tokens_alloc * sizeof(char*));
+        }
+        tokens[tokens_used++] = strdup(token);
+    }
+
+    // cleanup
+    if (tokens_used == 0) {
+        free(tokens);
+        tokens = NULL;
+    } else {
+        tokens = realloc(tokens, tokens_used * sizeof(char*));
+    }
+    *numtokens = tokens_used;
+    free(s);
+    return tokens;
+}
+
+
+///STRING SPLIT to Integer - Split comma separated string into integers
+int str_to_ints(char* fstring, int features[]) {
+
+    //char *line = "18,10,-2,20,10,4,2,8,6,17,23,20,27,7";
+//    size_t linelen;
+
+    char **tokens2;
+    size_t numtokens;
+
+    tokens2 = str_split_alt(fstring, ",", &numtokens);
+
+    size_t i;
+    for ( i = 0; i < numtokens; i++) {
+        printf("    token: \"%s\"\n", tokens2[i]);
+        features[i] = atoi(tokens2[i]);
+        free(tokens2[i]);
+    }
+
+    return numtokens;
+}
+
+
 //MAIN provided for testing; uncomment for testing this 'standalone'
 int main()
 {
@@ -114,5 +162,19 @@ int main()
 	printf("\nERROR3\n");
     }
 
+    //END OF TESTING FOR HISTORY FILE
+    //BEGIN TESTING FOR FEATURES STRING to INT
+
+    char *featureString = "18,10,-2,20,10,4,2,8,6,17,23,20,27,7";
+    int features[127];
+
+    int numtokens = str_to_ints(featureString, features);
+    printf("Number of Tokens: %d\n",numtokens);
+    for ( i = 0; i < numtokens; i++) {
+        printf("Integer %d: %d\n",i+1,features[i]);
+    }
+
+
     return 0;
 }
+
