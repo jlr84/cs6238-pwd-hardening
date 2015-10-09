@@ -7,11 +7,16 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <gmp.h> //For big numbers!
 
 #include "crypt.c" //crypt_standalone.c is the same with 'main' added for testing
 #include "tokenize.c" //tokenize_standalone.c is the same with 'main' added for testing
 #include "utilities.h"
 #include "server.h"
+#include "random.h"
+#include "random.c"
+#include "polynomial.h"
+#include "polynomial.c"
 
 /* ERROR Codes, as structured:
 111 = history file not found or not opened successfully;
@@ -125,33 +130,55 @@ int process_history(history currentHistory) {
 }
 
 //PLACEHOLDER FOR Pr Function
-int PR(int r, int x) {
-    int y = x*r;
-    return y;
+void PR(mpz_t y, mpz_t r, int x) {
+    mpz_mul_si( y, r, x);
 }
 
 //PLACEHOLDER FOR Gr Function
-int GR(int r, int x, char* pswd) {
-    int y = x*r+strlen(pswd);
-    return y;
+int GR(mpz_t y, mpz_t r, int x, char* pswd) {
+    mpz_mul_si(y, r, x); 
+    mpz_add_ui(y, y, strlen(pswd));
 }
 
 //Function for calculating all alpha column values as valid
-void computeAlpha(long* alpha, int numfeatures, char* password, int q, int r) {
+void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password, mpz_t q, mpz_t r) {
 
     int i;
+    mpz_t result, gr_result, pr_result, sum;
+    mpz_init(result);
+    mpz_init(gr_result);
+    mpz_init(pr_result);
+    mpz_init(sum);
+  
     for (i = 1; i <= numfeatures; i++) {
-        alpha[i-1] = PR(r, i*2) + ( GR(r, i*2, password) % q );
+        PR(pr_result, r, i*2);
+        AddPolynomial(Poly, pr_result, sum);
+        GR(gr_result, r, i*2, password);
+        mpz_mod(result, gr_result, q);
+        mpz_add(alpha[i-1], sum, result);
+	//Here is the equivalent of what we computed if using 'int' instead of gmp/mpz
+	//alpha[i-1] = F(PR(r, i*2)) + ( GR(r, i*2, password) % q );
     }
     printf("Alpha Column initialized.\n");
 };
 
 //Function for calculating all alpha column values as valid
-void computeBravo(long* bravo, int numfeatures, char* password, int q, int r) {
+void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password, mpz_t q, mpz_t r) {
 
     int i;
+    mpz_t result, gr_result, pr_result, sum;
+    mpz_init(result);
+    mpz_init(gr_result);
+    mpz_init(pr_result);
+    mpz_init(sum);
     for (i = 1; i <= numfeatures; i++) {
-        bravo[i-1] = PR(r, i*2+1) + ( GR(r, i*2+1, password) % q );
+        PR(pr_result, r, i*2+1);
+        AddPolynomial(Poly, pr_result, sum);
+        GR(pr_result, r, i*2+1, password);
+        mpz_mod(result, gr_result, q);
+        mpz_add(bravo[i-1], sum, result);
+	//Here is the equivalent of what we computed if using 'int' instead of gmp/mpz
+        //bravo[i-1] = PR(r, i*2+1) + ( GR(r, i*2+1, password) % q );
     }
     printf("Bravo Column initialized.\n");
 };
@@ -262,38 +289,50 @@ int initProgram(char* argv[]) {
     /* SECOND, select 160-bit prime value q; also select random Hpwd where
        Hpwd < q; note, h is fixed at 5; also select 160-bit value r that 
        will be stored for future use after initialization */
-    //INSERT FUNCTION HERE
-    int q = 33;  // temporary
-    printf("\nq: %d\n",q);
-    int r = 42;  // temporary
-    printf("r: %d\n",r);
+    mpz_t q;
+    RandomPrime(q);   
+    gmp_printf("\nq: %Zd\n", q);
+    mpz_t r;
+    RandomNumber(r);
+    gmp_printf("r: %Zd\n", r);
 
 
     /* THIRD, determine Maximum number of distinguising features, m,
        then select polynomial f of degree m-1 */
     printf("Distinguishing Features: %d\n", numfeatures);
     printf("Selecting Polynomial of degree: %d\n", numfeatures-1);
-    //INSERT FUNCTION HERE
+//    mpz_t sum;   		//This will become Yai
+//    mpz_init(sum);
+//    mpz_t Xvariable;	  	//This will become PR(2i) or PR(2i+1)
+//    mpz_init(Xvariable);
+    Polynomial Poly[1];  	//Init poly struct
+    int realdegree = numfeatures -1;
+    InputPolynomial(&Poly[0], realdegree);
+    PrintPolynomial(Poly[0]);	
+    //AddPolynomial(Poly[0], Xvariable, sum);
+
+
     //Select polynomial f of degree m-1
     //f(0) will give us our initial hpwd
-    long hpwd = 1234567890; //temporary; use f polynomial
-    printf("Random hpwd: %lu\n", hpwd);
+    long hpwd = Poly[0].CoeffArray[0];
+    printf("Random hpwd: %ld\n", hpwd);
 
 
     /* FOURTH, using polynomial f, generate instruction table, such that 
        all alpha and bravo values are valid */
-    //INSERT FUNCTION HERE
-//    status = genInstructionTable();
-    long alphatable[numfeatures];
-    long bravotable[numfeatures];
-    long *alpha = alphatable;
-    long *bravo = bravotable;
-    computeAlpha(alpha, numfeatures, password, q, r);
-    computeBravo(bravo, numfeatures, password, q, r);
+    mpz_t alphatable[numfeatures];
+    mpz_t bravotable[numfeatures];
+    for ( i = 0; i < numfeatures; i++) {
+        mpz_init(alphatable[i]);
+	mpz_init(bravotable[i]);
+    }
+    printf("Computing Alpha and Bravo Tables\n");
+    computeAlpha(Poly[0], alphatable, numfeatures, password, q, r);
+    computeBravo(Poly[0], bravotable, numfeatures, password, q, r);
     //Display Table:
     printf("Instruction Table:\n");
     for (i = 0; i < numfeatures; i++) {
-        printf("{%d, %lu, %lu}\n",i+1,alpha[i],bravo[i]);
+        gmp_printf("{%d, %Zd, %Zd}\n",i+1,alphatable[i],bravotable[i]);
     }
     printf("End of Instruction Table.\n");
 
@@ -336,7 +375,7 @@ int main(int argc, char* argv[])
     status = initProgram(argv);
 
     //Process input file to verify each password
-//    status = processInput(argv, pwd, feats);
+    //status = processInput(argv, pwd, feats);
     
     return status;
 
