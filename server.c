@@ -19,6 +19,9 @@
 #include "polynomial.c"
 #include "lagrange.h"
 #include "lagrange.c"
+#include "pr-grp.h"
+#include "pr-grp.c"
+
 
 /* ERROR Codes, as structured:
 111 = history file not found or not opened successfully;
@@ -131,17 +134,6 @@ int process_history(history currentHistory) {
     return history_status;
 }
 
-//PLACEHOLDER FOR Pr Function
-void PR(mpz_t y, mpz_t r, int x) {
-    mpz_mul_si( y, r, x);
-}
-
-//PLACEHOLDER FOR Gr Function
-int GR(mpz_t y, mpz_t r, int x, char* pswd) {
-    mpz_mul_si(y, r, x); 
-    mpz_add_ui(y, y, strlen(pswd));
-}
-
 //Function for calculating all alpha column values as valid
 void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password, mpz_t q, mpz_t r) {
 
@@ -154,14 +146,14 @@ void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password
   
     for (i = 1; i <= numfeatures; i++) {
         PR(pr_result, r, i*2);
-        gmp_printf("Pr(2i); i=%d: %Zd\n", i, pr_result); 
+//        gmp_printf("Pr(2i); i=%d: %Zd\n", i, pr_result); 
         AddPolynomial(Poly, pr_result, sum);
-        gmp_printf("Sum; i=%d: %Zd\n",i,sum);
-        GR(gr_result, r, i*2, password);
+//        gmp_printf("Sum; i=%d: %Zd\n",i,sum);
+        GRP(gr_result, r, password, i*2);
         mpz_mod(result, gr_result, q);
-        gmp_printf("Modresult[%d]: %Zd\n",i,result);
+//        gmp_printf("Modresult[%d]: %Zd\n",i,result);
         mpz_add(alpha[i-1], sum, result);
-        gmp_printf("Alpha[%d]; i=%d: %Zd\n",i-1,i,alpha[i-1]);
+//        gmp_printf("Alpha[%d]; i=%d: %Zd\n",i-1,i,alpha[i-1]);
 	//Here is the equivalent of what we computed if using 'int' instead of gmp/mpz
 	//alpha[i-1] = F(PR(r, i*2)) + ( GR(r, i*2, password) % q );
     }
@@ -180,7 +172,7 @@ void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password
     for (i = 1; i <= numfeatures; i++) {
         PR(pr_result, r, i*2+1);
         AddPolynomial(Poly, pr_result, sum);
-        GR(gr_result, r, i*2+1, password);
+        GRP(gr_result, r, password, i*2+1);
         mpz_mod(result, gr_result, q);
         //gmp_printf("Modresult[%d]: %Zd\n",i,result);
         mpz_add(bravo[i-1], sum, result);
@@ -202,19 +194,38 @@ void decryptAlpha(mpz_t* xtable, mpz_t* ytable, mpz_t* alpha, int numfeatures, c
     for (i = 1; i <= numfeatures; i++) {
         //Calculte x value; "Pr(2i)"
         PR(xtable[i-1], r, i*2);
-        gmp_printf("Pr(2i); i=%d: %Zd\n", i, xtable[i-1]);
+//        gmp_printf("Pr(2i); i=%d: %Zd\n", i, xtable[i-1]);
         //Calculate y value; "alpha(ai) - Gr,pwd(2i) mod q"
-	GR(gr_result, r, i*2, password);
+	GRP(gr_result, r, password, i*2);
         mpz_mod(mod_result, gr_result, q);
-        gmp_printf("Modresult[%d]: %Zd\n",i,mod_result);
-        gmp_printf("Alpha2; i=%d: %Zd\n",i,alpha[i-1]);
+//        gmp_printf("Modresult[%d]: %Zd\n",i,mod_result);
+//        gmp_printf("Alpha2; i=%d: %Zd\n",i,alpha[i-1]);
         mpz_sub(ytable[i-1], alpha[i-1], mod_result );
-        gmp_printf("Ytable; i=%d: %Zd\n",i,ytable[i-1]);
+//        gmp_printf("Ytable; i=%d: %Zd\n",i,ytable[i-1]);
     }
 }
 
 //Function to decrypt bravo table
-
+void decryptBravo(mpz_t* xtable, mpz_t* ytable, mpz_t* bravo, int numfeatures, char* password, mpz_t q, mpz_t r) {
+    int i;
+    mpz_t pr_result, gr_result, mod_result, result;
+    mpz_init(pr_result);
+    mpz_init(gr_result);
+    mpz_init(mod_result);
+    mpz_init(result);
+    for (i = 1; i <= numfeatures; i++) {
+        //Calculte x value; "Pr(2i)"
+        PR(xtable[i-1], r, i*2+1);
+//        gmp_printf("Pr(2i); i=%d: %Zd\n", i, xtable[i-1]);
+        //Calculate y value; "alpha(ai) - Gr,pwd(2i) mod q"
+        GRP(gr_result, r, password, i*2+1);
+        mpz_mod(mod_result, gr_result, q);
+//        gmp_printf("Modresult[%d]: %Zd\n",i,mod_result);
+//        gmp_printf("Bravo2; i=%d: %Zd\n",i,bravo[i-1]);
+        mpz_sub(ytable[i-1], bravo[i-1], mod_result );
+//        gmp_printf("Ytable; i=%d: %Zd\n",i,ytable[i-1]);
+    }
+}
 
 //Verifies each password/feature pair; returns 1 if good password; returns 0 if bad password
 int verifyPassword(char* pwd, char* feats) {
@@ -388,18 +399,34 @@ int initProgram(char* argv[]) {
         mpf_init(ytablef[i]);
         mpf_set_z(xtablef[i], xtable[i]);
         mpf_set_z(ytablef[i], ytable[i]);
-        gmp_printf("xtablez[%d]: %Zd\n xtablef[%d]: %Ff\n",i,xtable[i],i,xtablef[i]);
-        gmp_printf("ytablez[%d]: %Zd\n ytablef[%d]: %Ff\n",i,ytable[i],i,ytablef[i]);
+//        gmp_printf("xtablez[%d]: %Zd\n xtablef[%d]: %Ff\n",i,xtable[i],i,xtablef[i]);
+//        gmp_printf("ytablez[%d]: %Zd\n ytablef[%d]: %Ff\n",i,ytable[i],i,ytablef[i]);
 
     }
     printf("Computing Lagrange...\n");
     Lagrange(computedHpwd, numfeatures, xtablef, ytablef);
-    gmp_printf("Computed Hpwd: %Ff\n", computedHpwd);
+    gmp_printf("Computed Hpwd-Alpha: %Ff\n", computedHpwd);
     printf("Original Hpwd: %ld\n", hpwd);
-    computedHpwd2 = mpf_get_si(computedHpwd);
-    printf("ComputedLong Hpwd: %ld\n",computedHpwd2);
+    computedHpwd2 = Xround(computedHpwd); 
+    printf("ComputedLong Hpwd-Alpha: %ld\n",computedHpwd2);
     if (computedHpwd2 == hpwd) { printf("MATCH\n"); }
-    
+
+    printf("Decrypting Bravo Table\n");
+    decryptBravo(xtable, ytable, bravotable, numfeatures, password, q, r);
+    //Change mpz x and y tables to mpf
+    printf("Changing mpz to mpf\n");
+    for ( i = 0; i < numfeatures; i++ ) {
+        mpf_set_z(xtablef[i], xtable[i]);
+        mpf_set_z(ytablef[i], ytable[i]);
+    }
+    printf("Computing Lagrange...\n");
+    Lagrange(computedHpwd, numfeatures, xtablef, ytablef);
+    gmp_printf("Computed Hpwd-Bravo: %Ff\n", computedHpwd);
+    printf("Original Hpwd: %ld\n", hpwd);
+    computedHpwd2 = Xround(computedHpwd); 
+    printf("ComputedLong Hpwd-Bravo: %ld\n",computedHpwd2);
+    if (computedHpwd2 == hpwd) { printf("MATCH\n"); }    
+
 
     /* SIXTH, initialize history file; if a history file is present already, 
        this is open decrypt, verify; if not present, this will create a new
