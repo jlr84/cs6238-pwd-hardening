@@ -169,13 +169,17 @@ void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password
     mpz_init(gr_result);
     mpz_init(pr_result);
     mpz_init(sum);
+
     for (i = 1; i <= numfeatures; i++) {
-        PR(pr_result, r, i*2+1);
+        PR(pr_result, r, ((i*2)+1));
+//	gmp_printf("Pr(2i); i=%d: %Zd\n", i, pr_result);
         AddPolynomial(Poly, pr_result, sum);
-        GRP(gr_result, r, password, i*2+1);
+//        gmp_printf("Sum; i=%d: %Zd\n",i,sum);
+        GRP(gr_result, r, password, ((i*2)+1));
         mpz_mod(result, gr_result, q);
-        //gmp_printf("Modresult[%d]: %Zd\n",i,result);
+//        gmp_printf("Modresult[%d]: %Zd\n",i,result);
         mpz_add(bravo[i-1], sum, result);
+//        gmp_printf("Bravo[%d]; i=%d: %Zd\n",i-1,i,bravo[i-1]);
 	//Here is the equivalent of what we computed if using 'int' instead of gmp/mpz
         //bravo[i-1] = PR(r, i*2+1) + ( GR(r, i*2+1, password) % q );
     }
@@ -214,11 +218,11 @@ void decryptBravo(mpz_t* xtable, mpz_t* ytable, mpz_t* bravo, int numfeatures, c
     mpz_init(mod_result);
     mpz_init(result);
     for (i = 1; i <= numfeatures; i++) {
-        //Calculte x value; "Pr(2i)"
-        PR(xtable[i-1], r, i*2+1);
-//        gmp_printf("Pr(2i); i=%d: %Zd\n", i, xtable[i-1]);
-        //Calculate y value; "alpha(ai) - Gr,pwd(2i) mod q"
-        GRP(gr_result, r, password, i*2+1);
+        //Calculte x value; "Pr(2i+1)"
+        PR(xtable[i-1], r, ((i*2)+1));
+//        gmp_printf("Pr(2i+1); i=%d: %Zd\n", i, xtable[i-1]);
+        //Calculate y value; "alpha(ai) - Gr,pwd(2i+1) mod q"
+        GRP(gr_result, r, password, ((i*2)+1));
         mpz_mod(mod_result, gr_result, q);
 //        gmp_printf("Modresult[%d]: %Zd\n",i,mod_result);
 //        gmp_printf("Bravo2; i=%d: %Zd\n",i,bravo[i-1]);
@@ -376,63 +380,83 @@ int initProgram(char* argv[]) {
     printf("End of Instruction Table.\n");
 
 
-    /* FIFTH, verifty instruction table; we will do this by "decrypting" 
-       the alpha and bravo tables and using the Lagrange function for each
-       produces and X(0) value that matches the hpwd */
-    mpz_t xtable[numfeatures];
-    mpz_t ytable[numfeatures];
-    for ( i = 0; i < numfeatures; i++ ) {
-        mpz_init(xtable[i]);
-        mpz_init(ytable[i]);
-    }
+    /* FIFTH, verify instruction table; we will do this by "decrypting" 
+       the alpha and bravo tables and using the Lagrange function for each;
+       should produce an X(0) value that matches the hpwd */
     printf("Decrypting Alpha Table\n");
-    decryptAlpha(xtable, ytable, alphatable, numfeatures, password, q, r);
-    mpf_t computedHpwd;
-    mpf_init(computedHpwd);
-    long computedHpwd2;
+    mpz_t xtablea[numfeatures];
+    mpz_t ytablea[numfeatures];
+    for ( i = 0; i < numfeatures; i++ ) {
+        mpz_init(xtablea[i]);
+        mpz_init(ytablea[i]);
+    }
+    printf("Password: %s; NumFeatures: %d\n",password, numfeatures);
+    gmp_printf("Q: %Zd\nR: %Zd\n",q,r);
+    decryptAlpha(xtablea, ytablea, alphatable, numfeatures, password, q, r);
+    mpf_t computedHpwdA;
+    mpf_init(computedHpwdA);
+    long computedHpwdA2;
     //Change mpz x and y tables to mpf
     printf("Changing mpz to mpf\n");
-    mpf_t xtablef[numfeatures];
-    mpf_t ytablef[numfeatures];
+    mpf_t xtableaf[numfeatures];
+    mpf_t ytableaf[numfeatures];
     for ( i = 0; i < numfeatures; i++ ) {
-	mpf_init(xtablef[i]);
-        mpf_init(ytablef[i]);
-        mpf_set_z(xtablef[i], xtable[i]);
-        mpf_set_z(ytablef[i], ytable[i]);
+	mpf_init(xtableaf[i]);
+        mpf_init(ytableaf[i]);
+        mpf_set_z(xtableaf[i], xtablea[i]);
+        mpf_set_z(ytableaf[i], ytablea[i]);
 //        gmp_printf("xtablez[%d]: %Zd\n xtablef[%d]: %Ff\n",i,xtable[i],i,xtablef[i]);
 //        gmp_printf("ytablez[%d]: %Zd\n ytablef[%d]: %Ff\n",i,ytable[i],i,ytablef[i]);
 
     }
-    printf("Computing Lagrange...\n");
-    Lagrange(computedHpwd, numfeatures, xtablef, ytablef);
-    gmp_printf("Computed Hpwd-Alpha: %Ff\n", computedHpwd);
+    printf("Computing Alpha Lagrange...\n");
+    Lagrange(computedHpwdA, numfeatures, xtableaf, ytableaf);
+    gmp_printf("Computed Hpwd-Alpha: %Ff\n", computedHpwdA);
     printf("Original Hpwd: %ld\n", hpwd);
-    computedHpwd2 = Xround(computedHpwd); 
-    printf("ComputedLong Hpwd-Alpha: %ld\n",computedHpwd2);
-    if (computedHpwd2 == hpwd) { printf("MATCH\n"); }
+    computedHpwdA2 = Xround(computedHpwdA); 
+    printf("ComputedLong Hpwd-Alpha: %ld\n",computedHpwdA2);
+    if (computedHpwdA2 == hpwd) { printf("MATCH\n"); }
 
     printf("Decrypting Bravo Table\n");
-    decryptBravo(xtable, ytable, bravotable, numfeatures, password, q, r);
-    //Change mpz x and y tables to mpf
-    printf("Changing mpz to mpf\n");
+    mpz_t xtableb[numfeatures];
+    mpz_t ytableb[numfeatures];
     for ( i = 0; i < numfeatures; i++ ) {
-        mpf_set_z(xtablef[i], xtable[i]);
-        mpf_set_z(ytablef[i], ytable[i]);
+        mpz_init(xtableb[i]);
+        mpz_init(ytableb[i]);
     }
-    printf("Computing Lagrange...\n");
-    Lagrange(computedHpwd, numfeatures, xtablef, ytablef);
-    gmp_printf("Computed Hpwd-Bravo: %Ff\n", computedHpwd);
+    printf("Password: %s; NumFeatures: %d\n",password,numfeatures);
+    gmp_printf("Q: %Zd\nR: %Zd\n",q,r);
+    decryptBravo(xtableb, ytableb, bravotable, numfeatures, password, q, r);
+    //Change mpz x and y tables to mpf
+    mpf_t computedHpwdB;
+    mpf_init(computedHpwdB);
+    long computedHpwdB2;
+    printf("Changing mpz to mpf\n");
+    mpf_t xtablebf[numfeatures];
+    mpf_t ytablebf[numfeatures];
+    for ( i = 0; i < numfeatures; i++ ) {
+        mpf_init(xtablebf[i]);
+        mpf_init(ytablebf[i]);
+        mpf_set_z(xtablebf[i], xtableb[i]);
+        mpf_set_z(ytablebf[i], ytableb[i]);
+//        gmp_printf("xtablez[%d]: %Zd\n xtablef[%d]: %Ff\n",i,xtable[i],i,xtablef[i]);
+//        gmp_printf("ytablez[%d]: %Zd\n ytablef[%d]: %Ff\n",i,ytable[i],i,ytablef[i]);
+    }
+
+    printf("Computing Bravo Lagrange...\n");
+    Lagrange(computedHpwdB, numfeatures, xtablebf, ytablebf);
+    gmp_printf("Computed Hpwd-Bravo: %Ff\n", computedHpwdB);
     printf("Original Hpwd: %ld\n", hpwd);
-    computedHpwd2 = Xround(computedHpwd); 
-    printf("ComputedLong Hpwd-Bravo: %ld\n",computedHpwd2);
-    if (computedHpwd2 == hpwd) { printf("MATCH\n"); }    
+    computedHpwdB2 = Xround(computedHpwdB); 
+    printf("ComputedLong Hpwd-Bravo: %ld\n",computedHpwdB2);
+    if (computedHpwdB2 == hpwd) { printf("MATCH\n"); }    
 
 
     /* SIXTH, initialize history file; if a history file is present already, 
        this is open decrypt, verify; if not present, this will create a new
        empty history file */
-    history currentHistory;                     //Declare current history struct
-    status = process_history(currentHistory);   //process history file
+//    history currentHistory;                     //Declare current history struct
+//    status = process_history(currentHistory);   //process history file
 
     printf("\nEnd of Initialization\n");
 
