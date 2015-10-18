@@ -296,6 +296,9 @@ void readInstructionTable(int col, mpz_t * table, int size) {
 int verifyPassword(char* pwd, char* feats) {
     
     int status = 0;
+    long hpwd; 
+
+    //ADD LOGIC HERE
 
     history currentHistory; 			//Declare current history struct
 //    status = process_history(currentHistory, hpwd);	//process history file
@@ -346,6 +349,10 @@ int processInput(char* argv[], char* pwd, char* feats) {
                 printf("Password/Feature #%d verified\n", i/2);
             }
             i = i + 1;
+
+	    //TEMPORARY TRUNCATION 
+	    if ( i == 3) { fclose(f); fclose(output); printf("ExitingEarly\n"); return status; } 
+
         }
         printf("End of input file.\n");
     }
@@ -608,7 +615,8 @@ int main(int argc, char* argv[])
     status = initProgram(argv);
 
     //Process input file to verify each password
-    //status = processInput(argv, pwd, feats);
+    printf("\nProcessing of user input [file] now.\n");
+    status = processInput(argv, pwd, feats);
     
     return status;
 
