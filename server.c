@@ -9,8 +9,8 @@
 #include <unistd.h>
 #include <gmp.h> //For big numbers!
 
-#include "crypt.c" //crypt_standalone.c is the same with 'main' added for testing
-#include "tokenize.c" //tokenize_standalone.c is the same with 'main' added for testing
+#include "crypt.c" 
+#include "tokenize.c" 
 #include "utilities.h"
 #include "server.h"
 #include "random.h"
@@ -33,6 +33,8 @@
 //Program Constants:
 char const historyFolderLocation[] = "./history"; // ensure path here is also on below line
 char const historyFilePath[] = "./history/historyfile"; // ensure path matches above line
+char const alphaPath[] = "./history/alphatable"; 
+char const bravoPath[] = "./history/bravotable";
 char const validationString[] = "VALID\n";
 char const endFileString[] = "END_OF_FILE\n";
 int const historyFileSize = 1200;
@@ -232,6 +234,28 @@ void decryptBravo(mpz_t* xtable, mpz_t* ytable, mpz_t* bravo, int numfeatures, c
     }
 }
 
+/* Saves instruction table to disk at destination listed in program
+   constants section above; 1 for alpha column; 2 for bravo column */
+void saveInstructionTable(int col, mpz_t * table, int size) {
+    char *name;
+    if (col == 1 ) { name=(char *)alphaPath; }
+    else if (col == 2) { name=(char *)bravoPath; }
+    else { 
+	printf("ERROR: Instruction Table not saved\n"); 
+	return; 
+    }
+
+    FILE *f;
+    f = fopen(name, "w+");
+    int i;
+    for ( i = 0; i < size; i++ ) {
+	mpz_out_str(f, 10, table[i]);
+        fputs("\n",f);
+    }
+    fclose(f);
+}
+
+
 //Verifies each password/feature pair; returns 1 if good password; returns 0 if bad password
 int verifyPassword(char* pwd, char* feats) {
     
@@ -379,7 +403,9 @@ int initProgram(char* argv[]) {
         gmp_printf("{%d, %Zd, %Zd}\n",i+1,alphatable[i],bravotable[i]);
     }
     printf("End of Instruction Table.\n\n");
-
+    
+    saveInstructionTable(1, alphatable, numfeatures);
+    saveInstructionTable(2, bravotable, numfeatures);
 
     /* FIFTH, verify instruction table; we will do this by "decrypting" 
        the alpha and bravo tables and using the Lagrange function for each;
@@ -469,7 +495,7 @@ int initProgram(char* argv[]) {
     //Process history file to verify encryption / decryption is working
     status = process_history(currentHistory, hpwd);
 
-    printf("\nEnd of Initialization\n");
+    printf("\nEnd of Initialization\n\n");
 
   return status;
 }
