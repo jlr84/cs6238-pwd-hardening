@@ -39,7 +39,7 @@ int const historyFileSize = 1200;
 
 
 //Function for creating a new blank history file when it was not already present
-int createFreshHistory () {
+int createFreshHistory(long hpwd) {
     FILE *historyFile;
     int returncode = 0;
 
@@ -67,9 +67,10 @@ int createFreshHistory () {
     unsigned char *mybufinptr = (unsigned char *)&mybufin;
 
     //Encrypt buffer and write to file
-    //printf("\nBEGINNING ENCRYPTION; Starting with...\nInput Buffer: %s\n",mybufinptr);
+//    printf("\nBEGINNING ENCRYPTION; Starting with...\nInput Buffer: %s\n",mybufinptr);
     printf("Encrypting 'empty' history to file '%s'\n", historyFilePath);
-    returncode = encrypt_buf_to_file(mybufinptr, historyFile);
+    printf("Encrypt HPWD: %lu\n", hpwd);
+    returncode = encrypt_buf_to_file(mybufinptr, historyFile, hpwd);
     fclose(historyFile);
     printf("Encryption Completed\n");
     printf("Fresh history file created.\n");
@@ -77,7 +78,7 @@ int createFreshHistory () {
 
 
 // Function processing history file stored in fixed location 
-int process_history(history currentHistory) {
+int process_history(history currentHistory, long hpwd) {
     int history_status = 0;
     FILE* inputfile = fopen(historyFilePath, "r");
     unsigned char decryptedtextbuffer[5000];
@@ -91,17 +92,17 @@ int process_history(history currentHistory) {
         perror("\nHISTORY FILE MISSING");
         
         //Create new history file
-        createFreshHistory();
+        createFreshHistory(hpwd);
         inputfile = fopen(historyFilePath, "r");
     }
-    
-    decrypt_file_to_buf(inputfile, decryptedtextptr);
+    printf("Decrypt HPWD: %lu\n", hpwd); 
+    decrypt_file_to_buf(inputfile, decryptedtextptr, hpwd);
     char mybufin[5000];
         
     //Copy decryptedbuffer to mybufin[]
     strcpy(mybufin, decryptedtextptr);
 
-    printf("\nHistory File Decrypted; starting Buffer:\n%s\n\n", mybufin);
+//    printf("\nHistory File Decrypted; starting Buffer:\n%s\n\n", mybufin);
 
     //Tokenize our input buffer
     char **tokens;
@@ -237,7 +238,7 @@ int verifyPassword(char* pwd, char* feats) {
     int status = 0;
 
     history currentHistory; 			//Declare current history struct
-    status = process_history(currentHistory);	//process history file
+//    status = process_history(currentHistory, hpwd);	//process history file
 
     //ADD LOGIC HERE
 
@@ -377,7 +378,7 @@ int initProgram(char* argv[]) {
     for (i = 0; i < numfeatures; i++) {
         gmp_printf("{%d, %Zd, %Zd}\n",i+1,alphatable[i],bravotable[i]);
     }
-    printf("End of Instruction Table.\n");
+    printf("End of Instruction Table.\n\n");
 
 
     /* FIFTH, verify instruction table; we will do this by "decrypting" 
@@ -390,14 +391,14 @@ int initProgram(char* argv[]) {
         mpz_init(xtablea[i]);
         mpz_init(ytablea[i]);
     }
-    printf("Password: %s; NumFeatures: %d\n",password, numfeatures);
-    gmp_printf("Q: %Zd\nR: %Zd\n",q,r);
+//    printf("Password: %s; NumFeatures: %d\n",password, numfeatures);
+//    gmp_printf("Q: %Zd\nR: %Zd\n",q,r);
     decryptAlpha(xtablea, ytablea, alphatable, numfeatures, password, q, r);
     mpf_t computedHpwdA;
     mpf_init(computedHpwdA);
     long computedHpwdA2;
     //Change mpz x and y tables to mpf
-    printf("Changing mpz to mpf\n");
+//    printf("Changing mpz to mpf\n");
     mpf_t xtableaf[numfeatures];
     mpf_t ytableaf[numfeatures];
     for ( i = 0; i < numfeatures; i++ ) {
@@ -411,11 +412,12 @@ int initProgram(char* argv[]) {
     }
     printf("Computing Alpha Lagrange...\n");
     Lagrange(computedHpwdA, numfeatures, xtableaf, ytableaf);
-    gmp_printf("Computed Hpwd-Alpha: %Ff\n", computedHpwdA);
+//    gmp_printf("Computed Hpwd-Alpha: %Ff\n", computedHpwdA);
     printf("Original Hpwd: %ld\n", hpwd);
     computedHpwdA2 = Xround(computedHpwdA); 
-    printf("ComputedLong Hpwd-Alpha: %ld\n",computedHpwdA2);
+    printf("Computed Hpwd-Alpha: %ld\n",computedHpwdA2);
     if (computedHpwdA2 == hpwd) { printf("MATCH\n"); }
+    else { printf("FAIL\n"); }
 
     printf("Decrypting Bravo Table\n");
     mpz_t xtableb[numfeatures];
@@ -424,14 +426,14 @@ int initProgram(char* argv[]) {
         mpz_init(xtableb[i]);
         mpz_init(ytableb[i]);
     }
-    printf("Password: %s; NumFeatures: %d\n",password,numfeatures);
-    gmp_printf("Q: %Zd\nR: %Zd\n",q,r);
+//    printf("Password: %s; NumFeatures: %d\n",password,numfeatures);
+//    gmp_printf("Q: %Zd\nR: %Zd\n",q,r);
     decryptBravo(xtableb, ytableb, bravotable, numfeatures, password, q, r);
     //Change mpz x and y tables to mpf
     mpf_t computedHpwdB;
     mpf_init(computedHpwdB);
     long computedHpwdB2;
-    printf("Changing mpz to mpf\n");
+//    printf("Changing mpz to mpf\n");
     mpf_t xtablebf[numfeatures];
     mpf_t ytablebf[numfeatures];
     for ( i = 0; i < numfeatures; i++ ) {
@@ -445,18 +447,27 @@ int initProgram(char* argv[]) {
 
     printf("Computing Bravo Lagrange...\n");
     Lagrange(computedHpwdB, numfeatures, xtablebf, ytablebf);
-    gmp_printf("Computed Hpwd-Bravo: %Ff\n", computedHpwdB);
+//    gmp_printf("Computed Hpwd-Bravo: %Ff\n", computedHpwdB);
     printf("Original Hpwd: %ld\n", hpwd);
     computedHpwdB2 = Xround(computedHpwdB); 
-    printf("ComputedLong Hpwd-Bravo: %ld\n",computedHpwdB2);
+    printf("Computed Hpwd-Bravo: %ld\n",computedHpwdB2);
     if (computedHpwdB2 == hpwd) { printf("MATCH\n"); }    
+    else { printf("FAIL\n"); }
 
+    if (computedHpwdA2 == hpwd && computedHpwdB2 == hpwd) {
+	printf("Instruction Table Verified Correct\n\n");
+    }
 
-    /* SIXTH, initialize history file; if a history file is present already, 
-       this is open decrypt, verify; if not present, this will create a new
-       empty history file */
-//    history currentHistory;                     //Declare current history struct
-//    status = process_history(currentHistory);   //process history file
+    /* SIXTH, initialize history file; this will create a new
+       empty history file then open and verify it to ensure
+       encryption / decryption works */
+    printf("Initializing History File:\n");
+    //Declare current history struct
+    history currentHistory;
+    //Create new history file
+    createFreshHistory(hpwd);
+    //Process history file to verify encryption / decryption is working
+    status = process_history(currentHistory, hpwd);
 
     printf("\nEnd of Initialization\n");
 

@@ -93,6 +93,6 @@ int AddPolynomial(Polynomial Poly, mpz_t num, mpz_t sum)
       degree++;
     }
   }
-  gmp_printf("The total sum of the polynomial is %Zd\n", sum);
+//  gmp_printf("The total sum of the polynomial is %Zd\n", sum);
   return 0;
 }

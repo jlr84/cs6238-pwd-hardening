@@ -6,11 +6,11 @@
 #include "utilities.c"
 
 //Function Declarations:
-int decrypt_file_to_buf(FILE *in, unsigned char *mybufout);
-int encrypt_buf_to_file(unsigned char *mybufin, FILE *out);
+int decrypt_file_to_buf(FILE *in, unsigned char *mybufout, long hpwd);
+int encrypt_buf_to_file(unsigned char *mybufin, FILE *out, long hpwd);
 
 //DECRYPT FROM FILE TO BUFFER
-int decrypt_file_to_buf(FILE *in, unsigned char *mybufout) {
+int decrypt_file_to_buf(FILE *in, unsigned char *mybufout, long hpwd) {
 	
 	int do_encrypt = 0; //1 for encrypt; 0 for decrypt
 
@@ -21,8 +21,11 @@ int decrypt_file_to_buf(FILE *in, unsigned char *mybufout) {
         
 	/* Bogus key and IV: we'd normally set these from
            another source. */
-        unsigned char key[] = "0123456789abcdeF";
+//        unsigned char key[] = "0123456789abcdeF";
+	unsigned char key[sizeof(hpwd)];
+	memcpy(key, (char*)&hpwd, sizeof(hpwd));
         unsigned char iv[] = "1234567887654321";
+	printf("Decrypt Key: %s\n",key);
 
         /* Don't set key or IV right away; we want to check lengths */
         EVP_CIPHER_CTX_init(&ctx);
@@ -59,7 +62,7 @@ int decrypt_file_to_buf(FILE *in, unsigned char *mybufout) {
 }
 
 //ENCRYPT FROM BUFFER TO FILE
-int encrypt_buf_to_file(unsigned char *mybufin, FILE *out) {
+int encrypt_buf_to_file(unsigned char *mybufin, FILE *out, long hpwd) {
 	
 	int do_encrypt = 1; // 1 for encrypt; 0 for decrypt
  
@@ -71,8 +74,11 @@ int encrypt_buf_to_file(unsigned char *mybufin, FILE *out) {
         
 	/* Bogus key and IV: we'd normally set these from
            another source. */
-        unsigned char key[] = "0123456789abcdeF";
+//        unsigned char key[] = "0123456789abcdeF";
         unsigned char iv[] = "1234567887654321";
+        unsigned char key[sizeof(hpwd)];
+        memcpy(key, (char*)&hpwd, sizeof(hpwd));
+        printf("Encrypt Key: %s\n",key);
 
         /* Don't set key or IV right away; we want to check lengths */
         EVP_CIPHER_CTX_init(&ctx);
