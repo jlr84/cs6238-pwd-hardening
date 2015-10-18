@@ -237,6 +237,7 @@ void decryptBravo(mpz_t* xtable, mpz_t* ytable, mpz_t* bravo, int numfeatures, c
 /* Saves instruction table to disk at destination listed in program
    constants section above; 1 for alpha column; 2 for bravo column */
 void saveInstructionTable(int col, mpz_t * table, int size) {
+    //Determine which file to write to (1=alpha; 2 =bravo)
     char *name;
     if (col == 1 ) { name=(char *)alphaPath; }
     else if (col == 2) { name=(char *)bravoPath; }
@@ -245,12 +246,47 @@ void saveInstructionTable(int col, mpz_t * table, int size) {
 	return; 
     }
 
+    //Open file for writing
     FILE *f;
     f = fopen(name, "w+");
     int i;
+    //For each stored instruction table entry, write to file
     for ( i = 0; i < size; i++ ) {
 	mpz_out_str(f, 10, table[i]);
+        //Add newline character after each entry 
         fputs("\n",f);
+    }
+    fclose(f);
+}
+
+/* Open instruction table from file and read into mpz_t table; 
+   read based on constants section above; 1 for alpha column; 
+   2 for bravo column */
+void readInstructionTable(int col, mpz_t * table, int size) {
+    char *name;
+    if (col == 1 ) { name=(char *)alphaPath; }
+    else if (col == 2) { name=(char *)bravoPath; }
+    else {
+        printf("ERROR: Instruction Table not opened.\n");
+        return;
+    }
+    
+    //Create  buffer for reading in each line
+    unsigned char buff[800];
+    
+    //Open file for reading
+    FILE *f;
+    f = fopen(name, "r");
+    printf("File %s opened\n",name);
+
+    if (!f) {
+ 	printf("Input file not found\n");
+    } else {
+        int i = 0;
+        //Read in file to table[i]
+	for ( i = 0; i < size; i++ ) {
+	    mpz_inp_str(table[i], f, 10);
+	}
     }
     fclose(f);
 }
@@ -328,6 +364,12 @@ int initProgram(char* argv[]) {
     /////////////////////////////
     printf("Beginning Initialization.\n");
 
+    //Make history directory if not already present on system:
+    struct stat st ={0};
+    if (stat(historyFolderLocation, &st) == -1) {
+        mkdir(historyFolderLocation, 0700);
+    }
+
     /* FIRST, get initial password and features from input file */
     //Open Input File, then get first line (password)
     FILE *f = fopen(argv[1], "r");
@@ -401,11 +443,18 @@ int initProgram(char* argv[]) {
     printf("Instruction Table:\n");
     for (i = 0; i < numfeatures; i++) {
         gmp_printf("{%d, %Zd, %Zd}\n",i+1,alphatable[i],bravotable[i]);
+        if ( i == 1 ) { 
+	    printf("...%d to %d truncated for easier reading...\n",i+2,numfeatures-1);
+            i = numfeatures - 2;
+	}
     }
     printf("End of Instruction Table.\n\n");
-    
+
+    //Save "encrypted" instruction tables to file    
     saveInstructionTable(1, alphatable, numfeatures);
     saveInstructionTable(2, bravotable, numfeatures);
+    printf("Alpha-Bravo Tables Written to file\n");
+    
 
     /* FIFTH, verify instruction table; we will do this by "decrypting" 
        the alpha and bravo tables and using the Lagrange function for each;
@@ -496,6 +545,37 @@ int initProgram(char* argv[]) {
     status = process_history(currentHistory, hpwd);
 
     printf("\nEnd of Initialization\n\n");
+
+
+    /* EXTRA CREDIT, this reads in the stored alpha and bravo
+       instruction tables and verifies they match the values
+       already stored in memory. */
+    mpz_t vtablea[numfeatures];
+    mpz_t vtableb[numfeatures];
+    for ( i = 0; i < numfeatures; i++ ) {
+        mpz_init(vtablea[i]);
+        mpz_init(vtableb[i]);
+    }
+    printf("Reading tables from file...\n");
+    readInstructionTable(1, vtablea, numfeatures);
+    readInstructionTable(2, vtableb, numfeatures);
+    printf("End of read.\n");
+/*    printf("Verification Instruction Table:\n");
+    for (i = 0; i < numfeatures; i++) {
+        gmp_printf("{%d, %Zd, %Zd}\n",i+1,vtablea[i],vtableb[i]);
+    }
+    printf("End of Verified Instruction Table.\n\n");
+*/  int verified = 0;
+    int finalverification = 0;
+    for ( i = 0; i < numfeatures; i++ ) {
+        verified = mpz_cmp(alphatable[i], vtablea[i]);
+        if ( verified != 0 ) { finalverification = 888; }
+        verified = mpz_cmp(bravotable[i], vtableb[i]);
+        if ( verified != 0 ) { finalverification = 888; }
+    }
+    if ( finalverification == 0 ) { 
+	printf("Instruction Table file SUCCESSFULLY read and VERIFIED.\n"); 
+    } else { printf("Instruction Table FAILED validation\n"); } 
 
   return status;
 }
