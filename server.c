@@ -234,6 +234,43 @@ void decryptBravo(mpz_t* xtable, mpz_t* ytable, mpz_t* bravo, int numfeatures, c
     }
 }
 
+
+//Function to decrypt a mixed table; returns x table and y table
+void decryptTable(mpz_t* xtable, mpz_t* ytable, mpz_t* ctable, int* map, int numfeatures, char* password, mpz_t q, mpz_t r) {
+    int i;
+    mpz_t pr_result, gr_result, mod_result, result;
+    mpz_init(pr_result);
+    mpz_init(gr_result);
+    mpz_init(mod_result);
+    mpz_init(result);
+
+    
+    for (i = 1; i <= numfeatures; i++) {
+	if (map[i-1] == 1) {
+            //Calculte x value; "Pr(2i)"
+            PR(xtable[i-1], r, i*2);
+//          gmp_printf("Pr(2i); i=%d: %Zd\n", i, xtable[i-1]);
+            //Calculate y value; "alpha(ai) - Gr,pwd(2i) mod q"
+            GRP(gr_result, r, password, i*2);
+            mpz_mod(mod_result, gr_result, q);
+//          gmp_printf("Modresult[%d]: %Zd\n",i,mod_result);
+            mpz_sub(ytable[i-1], ctable[i-1], mod_result );
+//          gmp_printf("Ytable; i=%d: %Zd\n",i,ytable[i-1]);
+        } else { //If map[i-1] == 2, then:
+            //Calculte x value; "Pr(2i+1)"
+            PR(xtable[i-1], r, ((i*2)+1));
+//          gmp_printf("Pr(2i+1); i=%d: %Zd\n", i, xtable[i-1]);
+            //Calculate y value; "alpha(ai) - Gr,pwd(2i+1) mod q"
+            GRP(gr_result, r, password, ((i*2)+1));
+            mpz_mod(mod_result, gr_result, q);
+//          gmp_printf("Modresult[%d]: %Zd\n",i,mod_result);
+            mpz_sub(ytable[i-1], ctable[i-1], mod_result );
+//          gmp_printf("Ytable; i=%d: %Zd\n",i,ytable[i-1]);
+	}
+    }
+}
+
+
 /* Saves instruction table to disk at destination listed in program
    constants section above; 1 for alpha column; 2 for bravo column */
 void saveInstructionTable(int col, mpz_t * table, int size) {
@@ -293,10 +330,102 @@ void readInstructionTable(int col, mpz_t * table, int size) {
 
 
 //Verifies each password/feature pair; returns 1 if good password; returns 0 if bad password
-int verifyPassword(char* pwd, char* feats) {
+int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     
+    int ti = 10; // Given in project requirements
+    int k = 2; // Given in project requirements
     int status = 0;
-    long hpwd; 
+    long hpwd;
+    char password[200];
+    int features[127]; 
+    int numfeatures;
+    
+    /* Step 1: Initial processing of inputted password and
+       features from input file */
+    //Copy pwd string to interal buffer, removing 'newline' character
+    int pwdlen = copy_pwd(password, pwd);
+    //Display password inputted and length
+    printf("Password:>>>%s<<<\nLength: %d\n", password, pwdlen);
+    //Display feature string
+    printf("Features: %s", feats);
+    //Change feature string to integers and display
+    numfeatures = str_to_ints(feats, features);
+    printf("Number of Features: %d\n",numfeatures);
+    int i;
+    printf("Features Stored as Integers:\n|");
+    for ( i = 0; i < numfeatures; i++) {
+        printf(" %d |",features[i]);
+    }
+
+    /* Step 2: Read instruction table in from file; prepare 
+       for processing with inputted feature vector */
+    mpz_t tableA[numfeatures]; //Will hold alpha table
+    mpz_t tableB[numfeatures]; //Will hold bravo table
+    mpz_t currentTable[numfeatures]; //Will hold table for current logon
+    for (i = 0; i < numfeatures; i++) {
+	mpz_init(tableA[i]);
+	mpz_init(tableB[i]);
+	mpz_init(currentTable[i]);
+    }
+    printf("\nReading tables from file...\n");
+    readInstructionTable(1, tableA, numfeatures);
+    readInstructionTable(2, tableB, numfeatures);
+    printf("End of read.\n");
+/*    printf("Instruction Table:\n");
+    for (i = 0; i < numfeatures; i++ ) {
+        gmp_printf("{%d, %Zd, %Zd}\n",i+1,tableA[i],tableB[i]);
+    }
+*/    
+
+    /* Step 3: Build instruction table based on values found
+       in feature vectors inputted */
+    printf("Building instruction table...\n");
+    /* map will store where we retrieved each feature value; 
+       1 depicts an 'alpha' value; 2 depicts a 'bravo' value */
+    int map[numfeatures];
+    for (i = 0; i < numfeatures; i++) {
+	if ( features[i] < ti ) {
+	    mpz_set(currentTable[i], tableA[i]);
+	    map[i] = 1;
+	    printf("Table[%d]: Alpha|%d\n",i+1,map[i]);
+	} else {
+	    mpz_set(currentTable[i], tableB[i]);
+            map[i] = 2;  
+	    printf("Table[%d]: Bravo|%d\n",i+1,map[i]);
+	}
+    }
+    printf("Table Constructed\n");
+
+    /* Step 4: Decrypt current instruction table using r and 
+       password; then use lagrange to compute hpwd */
+    printf("Decrypting Table...\n");
+    mpz_t xtableC[numfeatures];
+    mpz_t ytableC[numfeatures];
+    for ( i = 0; i < numfeatures; i++ ) {
+        mpz_init(xtableC[i]);
+	mpz_init(ytableC[i]);
+    }
+    decryptTable(xtableC, ytableC, currentTable, map, numfeatures, password, q, r);
+    //Change mpz x and y tables to mpf
+    mpf_t computedHpwd;
+    mpf_init(computedHpwd);
+    long computedHpwd2;
+    printf("Changing mpz to mpf\n");
+    mpf_t xtableCf[numfeatures];
+    mpf_t ytableCf[numfeatures];
+    for ( i = 0; i < numfeatures; i++ ) {
+        mpf_init(xtableCf[i]);
+        mpf_init(ytableCf[i]);
+        mpf_set_z(xtableCf[i], xtableC[i]);
+        mpf_set_z(ytableCf[i], ytableC[i]);
+//        gmp_printf("xtablez[%d]: %Zd\n xtablef[%d]: %Ff\n",i,xtable[i],i,xtablef[i]);
+//        gmp_printf("ytablez[%d]: %Zd\n ytablef[%d]: %Ff\n",i,ytable[i],i,ytablef[i]);
+    }
+    //Now, compute hpwd using lagrange:
+    printf("Computing Lagrange...\n");
+    Lagrange(computedHpwd, numfeatures, xtableCf, ytableCf);
+    computedHpwd2 = Xround(computedHpwd);
+    printf("Computed Hpwd: %ld\n",computedHpwd2);
 
     //ADD LOGIC HERE
 
@@ -311,7 +440,7 @@ int verifyPassword(char* pwd, char* feats) {
 
 
 //Processes input file from beginning to end; calls verifyPassword() for each password/feature pair
-int processInput(char* argv[], char* pwd, char* feats) {
+int processInput(char* argv[], char* pwd, char* feats, mpz_t q, mpz_t r) {
 
     //Open Input File
     FILE *f = fopen(argv[1], "r");
@@ -331,15 +460,15 @@ int processInput(char* argv[], char* pwd, char* feats) {
             if (i % 2) {
                 //If i is odd do this:
                 strcpy(pwd, buff);
-                printf("ODD: %s\n",buff);
+//                printf("ODD: %s\n",buff);
                 //Password i has now been copied out.
 
             } else {
                 //Else, i.e., if i is even do this:
                 strcpy(feats, buff);
-                printf("EVEN: %s\n", buff);
+//                printf("EVEN: %s\n", buff);
                 //Features i have now been copied out; time to verify
-                verified = verifyPassword(pwd, feats);
+                verified = verifyPassword(pwd, feats, q, r);
                 printf("STATUS: %d\n",status);
                 if (verified == 1) {
                     fputs("1\n", output);
@@ -364,7 +493,7 @@ int processInput(char* argv[], char* pwd, char* feats) {
 
 
 //Runs program initialization sequence
-int initProgram(char* argv[]) {
+int initProgram(char* argv[], mpz_t q, mpz_t r) {
     int status = 0;
     /////////////////////////////
     //INITIALIZATION
@@ -411,10 +540,10 @@ int initProgram(char* argv[]) {
     /* SECOND, select 160-bit prime value q; also select random Hpwd where
        Hpwd < q; note, h is fixed at 5; also select 160-bit value r that 
        will be stored for future use after initialization */
-    mpz_t q;
+//    mpz_t q;
     RandomPrime(q);   
     gmp_printf("\nq: %Zd\n", q);
-    mpz_t r;
+//    mpz_t r;
     RandomNumber(r);
     gmp_printf("r: %Zd\n", r);
 
@@ -606,17 +735,21 @@ int main(int argc, char* argv[])
     mpf_set_default_prec(3000);
 
     //Declare buffers to hold password and features
+    mpz_t q;
+    mpz_t r;
+    mpz_init(q);
+    mpz_init(r);
     char password[200];
     char *pwd = (char *)&password;
     char features[200];
     char *feats = (char *)&features;
 
     //Run Program Initialization
-    status = initProgram(argv);
+    status = initProgram(argv, q, r);
 
     //Process input file to verify each password
     printf("\nProcessing of user input [file] now.\n");
-    status = processInput(argv, pwd, feats);
+    status = processInput(argv, pwd, feats, q, r);
     
     return status;
 
