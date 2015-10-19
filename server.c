@@ -36,6 +36,16 @@ char const historyFilePath[] = "./history/historyfile"; //ensure path matches ab
 char const alphaPath[] = "./history/alphatable"; //ensure path matches above
 char const bravoPath[] = "./history/bravotable"; //ensure path matches above
 int const historyFileSize = 1200;
+int const ti = 10; // Given in project requirements
+int const k = 2; // Given in project requirements
+
+
+//Function Declarations:
+void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password, mpz_t q, mpz_t r);
+void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password, mpz_t q, mpz_t r);
+void computeGarbage(Polynomial Poly, mpz_t* table, int i, mpz_t q, mpz_t r);
+void saveInstructionTable(int col, mpz_t * table, int size);
+
 
 
 //Function for creating a new blank history file when it was not already present
@@ -137,7 +147,9 @@ int process_history(history tempHistory, long hpwd) {
 }
 
 //Function for updating history file with values from current successful login
-void update_history(history tempHistory, long hpwd, char* feats, int numfeatures) {
+void update_history(history tempHistory, long hpwd, char* feats, int numfeatures, char* password, mpz_t q, mpz_t r ) {
+    int status;
+
 
     /* First, Open history file, decrypt, and create new 
        history struct */
@@ -164,71 +176,100 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
     fclose(inputfile);
     // Compare Results to validate formatting 
     if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
-        printf("\nHistory File re-validated... ");
+        printf("\nHistory File re-validated... \n");
     }
 
 
-    /* Second, Update history file data; this will update
-       differently depending on if we have h (h=5) successful
-       login attempts (including current attemp) */
-    printf("Updating history\n"); 
-    int status;
-//    printf("History Size: %s\n",tempHistory.size);
-    int hsize = tempHistory.size[0] - '0';
-//    printf("Size: %d",hsize); 
+    /* Second, pick a new r and polynomial, and calculate
+       new hardened password */
+    //Select new r
+    RandomNumber(r);
+    gmp_printf("New r selected: \n%Zd\n",r);
+    //Select new polynomial
+    printf("Creating new polynomial.\n");
+    Polynomial Poly[1];
+    int realdegree = numfeatures -1;
+    InputPolynomial(&Poly[0], realdegree);
+    PrintPolynomial(Poly[0]);
+    long newhpwd = Poly[0].CoeffArray[0];
+    printf("New Hpwd: %ld\n", newhpwd);
+    //Generate Base Instruction Table
+    mpz_t atable[numfeatures];
+    mpz_t btable[numfeatures];
+    int j;
+    for ( j = 0; j < numfeatures; j++) {
+        mpz_init(atable[j]);
+        mpz_init(btable[j]);
+    }
+    printf("Calculating new Alpha/Bravo Tables\n");
+    computeAlpha(Poly[0], atable, numfeatures, password, q, r);
+    computeBravo(Poly[0], btable, numfeatures, password, q, r);
+    printf("Base tables computed.\n");
 
+
+    /* Third, Update history file data; this will update
+       slightly different depending on if we have h (h=5) 
+       successful login attempts */
+    printf("Updating history\n"); 
+    
     //Open history file for writing
     FILE* hfile = fopen(historyFilePath, "w+");
 
-    /* If there have been fewer than h (h=5) successful logins
-       then we do not need to compute the mean or standard
-       deviation; we simply need to update the history and
-       re-save the information (encrypted) to disk */
+    //convert string size to int
+    int hsize = tempHistory.size[0] - '0';
+    char strsize[5];
+    //if size <=3, add one to size
     if ( hsize <= 3 ) {
-        //increase size by one
 	hsize = hsize + 1;
         //convert size to string for printing
- 	char strsize[5];
 	sprintf(strsize, "%d", hsize);
-	//Compile output buffer
-        unsigned char mybuf[1000] = "VALID\n";
-        strcat(mybuf, strsize);
-  	strcat(mybuf, "\n");
-        strcat(mybuf, feats);
-        strcat(mybuf, tempHistory.line1);
-	strcat(mybuf, "\n");
-        strcat(mybuf, tempHistory.line2);
-	strcat(mybuf, "\n");
-        strcat(mybuf, tempHistory.line3);
-	strcat(mybuf, "\n");
-        strcat(mybuf, tempHistory.line4);
-	strcat(mybuf, "\n");
-	strcat(mybuf, "END_OF_FILE\n\0");
-        //Pad to length=1000
-        unsigned char filler[]="aaa\0";
-        int i; 
-        int length = strlen(mybuf);
-        for (i = length; i < 1000; i = i + 1) {
-	    mybuf[i] = filler[1];
-	}
-	mybuf[999] = filler[3];
-	//Create pointer to buffer just created
-	unsigned char *mybufptr = (unsigned char*)&mybuf;
-        //Encrypt buffer and write to file
-        status = encrypt_buf_to_file(mybufptr, hfile, hpwd);
-    } else { 
-	/* ELSE, if size >3, then this validation will guarantee 
-           5 previous successful logins; as such, we need to 
-           calculate mean/standard deviation and do additional
-           processing here */
-	//Create integer array for each feature vector
+    } else {
+	hsize = 5;
+	sprintf(strsize, "%d", hsize);
+    }
+    //Compile output buffer
+    unsigned char mybuf[1000] = "VALID\n";
+    strcat(mybuf, strsize);
+    strcat(mybuf, "\n");
+    strcat(mybuf, feats);
+    strcat(mybuf, tempHistory.line1);
+    strcat(mybuf, "\n");
+    strcat(mybuf, tempHistory.line2);
+    strcat(mybuf, "\n");
+    strcat(mybuf, tempHistory.line3);
+    strcat(mybuf, "\n");
+    strcat(mybuf, tempHistory.line4);
+    strcat(mybuf, "\n");
+    strcat(mybuf, "END_OF_FILE\n\0");
+    //Pad to length=1000
+    unsigned char filler[]="aaa\0";
+    int i; 
+    int length = strlen(mybuf);
+    for (i = length; i < 1000; i = i + 1) {
+        mybuf[i] = filler[1];
+    }
+    mybuf[999] = filler[3];
+    //Create pointer to buffer just created
+    unsigned char *mybufptr = (unsigned char*)&mybuf;
+    //Encrypt buffer and write to file
+    status = encrypt_buf_to_file(mybufptr, hfile, newhpwd);
+    //Close history file
+    fclose(hfile);
+
+     
+    /* Fourth, if we have 5 previous successful logins, then
+       we need to calculate mean/standard deviation and do 
+       additional processing of instruction table */
+    //Create integer array for each feature vector
+    if ( hsize == 5 ) {
         printf("Features: \n%s%s\n%s\n%s\n%s\n", feats, tempHistory.line1, tempHistory.line2, tempHistory.line3, tempHistory.line4);
         int features1[numfeatures];
-	int features2[numfeatures];
-	int features3[numfeatures];
-	int features4[numfeatures];
-	int features5[numfeatures];
-        int num,j;
+        int features2[numfeatures];
+        int features3[numfeatures];
+        int features4[numfeatures];
+        int features5[numfeatures];
+        //Store all features as integers 
+        int num;
         num = str_to_ints(feats, features1);
         num = str_to_ints(tempHistory.line1, features2);
         num = str_to_ints(tempHistory.line2, features3);
@@ -256,22 +297,55 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
             printf(" %d |",features5[j]);
         }
 */
-	//For each feature, compute mean and standard deviation
-	float sdevs[numfeatures];
-	float means[numfeatures];
+        //For each feature, compute mean and standard deviation
+        float sdevs[numfeatures];
+        float means[numfeatures];
         calculate_sdev_mean(features1, features2, features3, features4, features5, sdevs, means, numfeatures);
-	printf("\nStandard Deviation and Mean Calculated.\n");
-	for ( j = 0; j < numfeatures; j++ ) {
+        printf("\nStandard Deviation and Mean Calculated.\n");
+        for ( j = 0; j < numfeatures; j++ ) {
             printf("%2d SD: %.2f |MN: %.2f\n",j+1,sdevs[j],means[j]);
-    	}
-    } 
+        }
+	
+        /* With Standard Deviation and mean computed, we will 
+           now update the instruction tables based on the 
+           specified constraints (see Monrose, et al., pg 6) */
+        int gar = 0;
+        //Change values to "garbage" based upon constraints
+        for ( j = 0; j < numfeatures; j++) {
+            //IF constraints are met, compute garbage for alpha or bravo
+            if ( abs( means[j] - ti ) > (k*sdevs[j]) ) {
+	        //IF mean < ti put garbage in bravo
+	        if ( means[j] < ti ) {
+	            computeGarbage(Poly[0], btable, j, q, r);
+	            gar = gar + 1;
+	        } else {  
+	            //ELSE put garbage in alpha
+	            computeGarbage(Poly[0], atable, j, q, r);
+	            gar = gar + 1;
+	        }
+	    } 
+	    //ELSE, leave valid computations in both alpha and bravo
+        }
+        printf("Tables updated with _%d_ garbage value(s).\n", gar);
+    }
+    //Display Table:
+    printf("Instruction Table:\n");
+    for (j = 0; j < numfeatures; j++) {
+        gmp_printf("{%d, %Zd, %Zd}\n",j+1,atable[j],btable[j]);
+        if ( j == 0 ) {
+            printf("...%d to %d truncated for easier reading...\n",j+2,numfeatures-1);
+            j = numfeatures - 2;
+        }
+    }
+    printf("End of Instruction Table.\n");
 
-    //Close history file
-    fclose(hfile);
-    
+    //Save "encrypted" instruction tables to file    
+    saveInstructionTable(1, atable, numfeatures);
+    saveInstructionTable(2, btable, numfeatures);
+    printf("Updated Alpha-Bravo Tables Written to file\n");
+
     //Run "ProcessHistory" to verify saved history before exiting:
-    status = process_history(tempHistory, hpwd);
-
+    status = process_history(tempHistory, newhpwd);
 }
 
 
@@ -299,7 +373,7 @@ void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password
 	//alpha[i-1] = F(PR(r, i*2)) + ( GR(r, i*2, password) % q );
     }
     printf("Alpha Column initialized.\n");
-};
+}
 
 //Function for calculating all alpha column values as valid
 void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password, mpz_t q, mpz_t r) {
@@ -325,7 +399,31 @@ void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password
         //bravo[i-1] = PR(r, i*2+1) + ( GR(r, i*2+1, password) % q );
     }
     printf("Bravo Column initialized.\n");
-};
+}
+
+
+//Function for calculating a garbage value for a specific feature
+void computeGarbage(Polynomial Poly, mpz_t* table, int i, mpz_t q, mpz_t r) {
+
+    /* This function uses a similar format to "computeAlpha" 
+       and "computeBravo" so the values appear legitimate; 
+       but this computes using an incorrect/garbage password
+       and wrong values for input into the PR and GRP 
+       functions; e.g., 3i+1 and i instead of 2i or 2i+1 */
+    char wrongPassword[] = "ThisIsGarbage";
+    mpz_t result, gr_result, pr_result, sum;
+    mpz_init(result);
+    mpz_init(gr_result);
+    mpz_init(pr_result);
+    mpz_init(sum);
+
+    PR(pr_result, r, ((i*3)+1));
+    AddPolynomial(Poly, pr_result, sum);
+    GRP(gr_result, r, wrongPassword, i);
+    mpz_mod(result, gr_result, q);
+    mpz_add(table[i], sum, result);
+//        gmp_printf("Bravo[%d]; i=%d: %Zd\n",i-1,i,bravo[i-1]);
+}
 
 
 //Function to decrypt alpha table; returns x table and y table
@@ -470,8 +568,6 @@ void readInstructionTable(int col, mpz_t * table, int size) {
 //Verifies each password/feature pair; returns 1 if good password; returns 0 if bad password
 int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     
-    int ti = 10; // Given in project requirements
-    int k = 2; // Given in project requirements
     int status = 0;
     char password[200];
     int features[127]; 
@@ -575,7 +671,7 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     } else if (status == 1) {
 	printf("Password Validated\n");
         //Update History file and save to disk
-        update_history(currentHistory, computedHpwd2, feats, numfeatures); 
+        update_history(currentHistory, computedHpwd2, feats, numfeatures, password, q, r); 
         
     } else {
 	printf("Unknown Error\n");
@@ -614,19 +710,20 @@ int processInput(char* argv[], char* pwd, char* feats, mpz_t q, mpz_t r) {
                 strcpy(feats, buff);
 //                printf("EVEN: %s\n", buff);
                 //Features i have now been copied out; time to verify
+		printf("\nProcessing Password/Feature #%d...\n",i/2);
                 verified = verifyPassword(pwd, feats, q, r);
-                printf("STATUS: %d\n",status);
+                printf("FINAL STATUS: %d\n",verified);
                 if (verified == 1) {
                     fputs("1\n", output);
                 } else {
                     fputs("0\n", output);
                 }
-                printf("Password/Feature #%d verified\n", i/2);
+                printf("END OF Password/Feature #%d verification\n\n", i/2);
             }
             i = i + 1;
 
 	    //TEMPORARY TRUNCATION 
-	    if ( i == 14) { fclose(f); fclose(output); printf("ExitingEarly\n"); return status; } 
+//	    if ( i == 14) { fclose(f); fclose(output); printf("ExitingEarly\n"); return status; } 
 
         }
         printf("End of input file.\n");
@@ -725,7 +822,7 @@ int initProgram(char* argv[], mpz_t q, mpz_t r) {
     printf("Instruction Table:\n");
     for (i = 0; i < numfeatures; i++) {
         gmp_printf("{%d, %Zd, %Zd}\n",i+1,alphatable[i],bravotable[i]);
-        if ( i == 1 ) { 
+        if ( i == 0 ) { 
 	    printf("...%d to %d truncated for easier reading...\n",i+2,numfeatures-1);
             i = numfeatures - 2;
 	}

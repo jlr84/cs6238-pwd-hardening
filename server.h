@@ -2,7 +2,9 @@
 #define __SERVER_H_
 
 
-//Type Definitions:
+/* Type Definitions
+-------------------*/
+
 typedef struct{
     char *validation;
     char *size;
@@ -13,5 +15,6 @@ typedef struct{
     char *line5;
     char *end;
 }history;
+
 
 #endif
