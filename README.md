@@ -43,7 +43,12 @@ Here are step by step instructions for compiling and running this program:
   ./OutputFile.txt
 
 
-
+NOTE, the "module_tests" folder contains individual portions of our code that "validate" specific sub-modules of our project against the listed project requirements. Specifically, see the following, which can each be compiled individually: 
+    ./module_tests/instruction-table-creation/  -- Demonstration of initialization of instruction table
+    ./module_tests/module2_encrypt-decrypt.c  -- Demonstration of encryption and decryption of constant size history file
+    ./module_tests/coordinate-computing  -- Demonstration of computing x and y coordinates and hardened password (hpwd')
+    ./module_tests/module4_update-history-file.c  -- Demonstration of correct updating of history file 
+    ./module_tests/error-correction  -- Demonstration of simple error correction 
 
 
 
