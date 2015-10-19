@@ -11,6 +11,6 @@ For example, to compile:
 gcc server.c -lcrypto -lgmp -lm
 
 Then, to execute: 
-./a.out input.txt myoutput.txt
+./a.out input.txt 
 
  

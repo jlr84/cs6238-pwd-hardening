@@ -31,6 +31,7 @@
 
 
 //Program Constants:
+char const outputFilePath[] = "./OutputFile.txt";
 char const historyFolderLocation[] = "./history"; //ensure this matches below lines
 char const historyFilePath[] = "./history/historyfile"; //ensure path matches above
 char const alphaPath[] = "./history/alphatable"; //ensure path matches above
@@ -114,27 +115,36 @@ int process_history(history tempHistory, long hpwd) {
     strcpy(mybufin, decryptedtextptr);
 
 //    printf("\nHistory File Decrypted; starting Buffer:\n%s\n\n", mybufin);
-
-    //Tokenize our input buffer
-    char **tokens;
-    tokens = str_split(mybufin, '\n');
-    if (tokens) {
-        tempHistory.validation = *(tokens + 0);
-        tempHistory.size = *(tokens + 1);
-        tempHistory.line1 = *(tokens + 2);
-        tempHistory.line2 = *(tokens + 3);
-        tempHistory.line3 = *(tokens + 4);
-        tempHistory.line4 = *(tokens + 5);
-        tempHistory.line5 = *(tokens + 6);
-        tempHistory.end = *(tokens + 7);
+//    printf("Length of mybufin: %d\n",strlen(mybufin));
+    int bufsize = strlen(mybufin);
+    char compare[] = "VALID";
+    if (bufsize > 0) {
+	//If the buffer starts with "V", tokenize
+        if ( memcmp(mybufin, compare, 1) == 0 ) {
+            //Tokenize our input buffer
+            char **tokens;
+            tokens = str_split(mybufin, '\n');
+            if (tokens) {
+                tempHistory.validation = *(tokens + 0);
+                tempHistory.size = *(tokens + 1);
+                tempHistory.line1 = *(tokens + 2);
+                tempHistory.line2 = *(tokens + 3);
+                tempHistory.line3 = *(tokens + 4);
+                tempHistory.line4 = *(tokens + 5);
+                tempHistory.line5 = *(tokens + 6);
+                tempHistory.end = *(tokens + 7);
+            }
+        }
     }
- 
     //Since the file opened successfully, close it here
     fclose(inputfile);
         
     /* Compare Results to validate proper formatting; if invalid formatting, 
        assume corrupted file or incorrect decrypting */
-    if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
+    if (bufsize == 0 || memcmp(mybufin, compare, 1) != 0) {
+       printf("\nHistory File Error, buffer not valid\n");
+       history_status = 222;
+    } else if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
         printf("\nHistory File Validated Successfully:\n");
         history_status = 1;
         //Print to screen for validation/testing
@@ -160,23 +170,37 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
     char mybufin[5000];
     //Copy decryptedbuffer to mybufin[]
     strcpy(mybufin, decryptedtextptr);
-    //Tokenize our input buffer
-    char **tokens;
-    tokens = str_split(mybufin, '\n');
-    if (tokens) {
-        tempHistory.validation = *(tokens + 0);
-        tempHistory.size = *(tokens + 1);
-        tempHistory.line1 = *(tokens + 2);
-        tempHistory.line2 = *(tokens + 3);
-        tempHistory.line3 = *(tokens + 4);
-        tempHistory.line4 = *(tokens + 5);
-        tempHistory.line5 = *(tokens + 6);
-        tempHistory.end = *(tokens + 7);
+
+    int bufsize = strlen(mybufin);
+    char compare[] = "VALID";
+    if (bufsize > 0) {
+        //If the buffer starts with "V", tokenize
+        if ( memcmp(mybufin, compare, 1) == 0 ) {
+            //Tokenize our input buffer
+            char **tokens;
+            tokens = str_split(mybufin, '\n');
+            if (tokens) {
+                tempHistory.validation = *(tokens + 0);
+                tempHistory.size = *(tokens + 1);
+                tempHistory.line1 = *(tokens + 2);
+                tempHistory.line2 = *(tokens + 3);
+                tempHistory.line3 = *(tokens + 4);
+                tempHistory.line4 = *(tokens + 5);
+                tempHistory.line5 = *(tokens + 6);
+                tempHistory.end = *(tokens + 7);
+            }
+        }
     }
+    //Close inputfile
     fclose(inputfile);
-    // Compare Results to validate formatting 
-    if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
-        printf("\nHistory File re-validated... \n");
+
+    //Compare results to validate formatting
+    if (bufsize == 0 || memcmp(mybufin, compare, 1) != 0) {
+       printf("\nHistory File Error, buffer not valid\n");
+    } else if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
+        printf("\nHistory File re-validated...\n");
+    } else {
+        printf("\nHistory File Error, or Invalid Decryption\n");
     }
 
 
@@ -667,12 +691,70 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     status = process_history(currentHistory, computedHpwd2);
     if (status == 222) { 
         printf("Attempting 'simple error correction'...\n");
-	// ADD LOGIC for Simple Error Correction Here
-    } else if (status == 1) {
+        int map2[numfeatures];
+        int m = 0;
+        while ( status == 222 && m < numfeatures ) {
+	    //Set map2 equal to original map that failed
+            for (i = 0; i < numfeatures; i++) {
+		map2[i] = map[i];
+	    }                
+            //Set feature 'm' to the opposite of previously tried
+            if ( map2[m] == 1 ) { 
+		map2[m] = 2;
+	    } else {
+		map2[m] = 1;
+	    }
+            printf("Rebuilding instruction table...\n");
+	    for (i = 0; i < numfeatures; i++) {
+		if ( map2[i] == 1 ) {
+            	    mpz_set(currentTable[i], tableA[i]);
+            	    printf("Table[%d]: Alpha|%d\n",i+1,map[i]);
+        	} else {
+            	    mpz_set(currentTable[i], tableB[i]);
+                    printf("Table[%d]: Bravo|%d\n",i+1,map[i]);
+                }
+            }
+            printf("Table Reconstructed\n");
+    	    //Decrypt current instruction table
+            printf("Decrypting Table...\n");
+            //mpz_t xtableC[numfeatures];
+            //mpz_t ytableC[numfeatures];
+            for ( i = 0; i < numfeatures; i++ ) {
+                mpz_init(xtableC[i]);
+                mpz_init(ytableC[i]);
+            }
+            decryptTable(xtableC, ytableC, currentTable, map2, numfeatures, password, q, r);
+            //Change mpz x and y tables to mpf
+            //mpf_t computedHpwd;
+            mpf_init(computedHpwd);
+            //long computedHpwd2;
+//          printf("Changing mpz to mpf\n");
+            //mpf_t xtableCf[numfeatures];
+            //mpf_t ytableCf[numfeatures];
+            for ( i = 0; i < numfeatures; i++ ) {
+                mpf_init(xtableCf[i]);
+                mpf_init(ytableCf[i]);
+                mpf_set_z(xtableCf[i], xtableC[i]);
+                mpf_set_z(ytableCf[i], ytableC[i]);
+            }
+            //Recompute hpwd using lagrange:
+            printf("Computing Lagrange...\n");
+            Lagrange(computedHpwd, numfeatures, xtableCf, ytableCf);
+            computedHpwd2 = Xround(computedHpwd);
+            printf("Computed Hpwd: %ld\n",computedHpwd2);
+            //Process history file/attempt to decrypt (222 = failed)
+            status = process_history(currentHistory, computedHpwd2);
+            printf("New status: %d\n",status);
+	    m = m + 1;
+        }
+	printf("Error Correction attempt complete.\n");
+    } 
+    if (status == 1) {
 	printf("Password Validated\n");
         //Update History file and save to disk
-        update_history(currentHistory, computedHpwd2, feats, numfeatures, password, q, r); 
-        
+        update_history(currentHistory, computedHpwd2, feats, numfeatures, password, q, r);  
+    } else if (status == 222) {
+	printf("Error Correction unsuccessful.\n");
     } else {
 	printf("Unknown Error\n");
     }
@@ -687,7 +769,7 @@ int processInput(char* argv[], char* pwd, char* feats, mpz_t q, mpz_t r) {
     //Open Input File
     FILE *f = fopen(argv[1], "r");
     //Open Output File
-    FILE *output = fopen(argv[2], "w+");
+    FILE *output = fopen(outputFilePath, "w+");
 
     char buff[200]; //Extra/temporary buffer used during transfer
     int status = 0;
@@ -967,9 +1049,9 @@ int main(int argc, char* argv[])
     printf("Beginning 'Server' execution.\n");
 
     //Verify correct arguments
-    if (argc != 3) {
+    if (argc != 2) {
         printf("ERROR: Incorrect arguments\nformat:\n");
-        printf("./program inputfile.txt outputfile.txt\n\nEXITING\n");
+        printf("./program inputfile.txt\n\nEXITING\n");
         return 0;
     }
 
@@ -993,6 +1075,8 @@ int main(int argc, char* argv[])
     //Process input file to verify each password
     printf("\nProcessing of user input [file] now.\n");
     status = processInput(argv, pwd, feats, q, r);
+    printf("\n\nSERVER EXECUTION COMPLETE.\n");
+    printf("Output File: %s\n",outputFilePath);
     
     return status;
 
