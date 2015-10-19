@@ -1,6 +1,6 @@
 /* server.c
-   CS6238, Project I, Password Hardening
-   Authors: James Roberts | Lei Zhang
+   Author: James Roberts
+   CS6238 Project 1: Authenticated Encryption
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,10 +145,10 @@ int process_history(history tempHistory, long hpwd) {
        printf("\nHistory File Error, buffer not valid\n");
        history_status = 222;
     } else if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
-        printf("\nHistory File Validated Successfully:\n");
+        //printf("\nHistory File Validated Successfully:\n");
         history_status = 1;
         //Print to screen for validation/testing
-        printf("VAL:%s\nSIZE:%s\nLN1:%s\nLN2:%s\nLN3:%s\nLN4:%s\nLN5:%s\nEND:%s\n",tempHistory.validation,tempHistory.size,tempHistory.line1,tempHistory.line2,tempHistory.line3,tempHistory.line4,tempHistory.line5,tempHistory.end);
+        //printf("VAL:%s\nSIZE:%s\nLN1:%s\nLN2:%s\nLN3:%s\nLN4:%s\nLN5:%s\nEND:%s\n",tempHistory.validation,tempHistory.size,tempHistory.line1,tempHistory.line2,tempHistory.line3,tempHistory.line4,tempHistory.line5,tempHistory.end);
     } else {
         printf("\nHistory File Error, or Invalid Decryption\n");
         history_status = 222;
@@ -198,7 +198,7 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
     if (bufsize == 0 || memcmp(mybufin, compare, 1) != 0) {
        printf("\nHistory File Error, buffer not valid\n");
     } else if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
-        printf("\nHistory File re-validated...\n");
+        //printf("\nHistory File re-validated...\n");
     } else {
         printf("\nHistory File Error, or Invalid Decryption\n");
     }
@@ -225,10 +225,10 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
         mpz_init(atable[j]);
         mpz_init(btable[j]);
     }
-    printf("Calculating new Alpha/Bravo Tables\n");
+    //printf("Calculating new Alpha/Bravo Tables\n");
     computeAlpha(Poly[0], atable, numfeatures, password, q, r);
     computeBravo(Poly[0], btable, numfeatures, password, q, r);
-    printf("Base tables computed.\n");
+    //printf("Base tables computed.\n");
 
 
     /* Third, Update history file data; this will update
@@ -325,9 +325,9 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
         float sdevs[numfeatures];
         float means[numfeatures];
         calculate_sdev_mean(features1, features2, features3, features4, features5, sdevs, means, numfeatures);
-        printf("\nStandard Deviation and Mean Calculated.\n");
+        //printf("\nStandard Deviation and Mean Calculated.\n");
         for ( j = 0; j < numfeatures; j++ ) {
-            printf("%2d SD: %.2f |MN: %.2f\n",j+1,sdevs[j],means[j]);
+            //printf("%2d SD: %.2f |MN: %.2f\n",j+1,sdevs[j],means[j]);
         }
 	
         /* With Standard Deviation and mean computed, we will 
@@ -350,23 +350,23 @@ void update_history(history tempHistory, long hpwd, char* feats, int numfeatures
 	    } 
 	    //ELSE, leave valid computations in both alpha and bravo
         }
-        printf("Tables updated with _%d_ garbage value(s).\n", gar);
+        //printf("Tables updated with _%d_ garbage value(s).\n", gar);
     }
     //Display Table:
-    printf("Instruction Table:\n");
+    //printf("Instruction Table:\n");
     for (j = 0; j < numfeatures; j++) {
-        gmp_printf("{%d, %Zd, %Zd}\n",j+1,atable[j],btable[j]);
+        //gmp_printf("{%d, %Zd, %Zd}\n",j+1,atable[j],btable[j]);
         if ( j == 0 ) {
-            printf("...%d to %d truncated for easier reading...\n",j+2,numfeatures-1);
+            //printf("...%d to %d truncated for easier reading...\n",j+2,numfeatures-1);
             j = numfeatures - 2;
         }
     }
-    printf("End of Instruction Table.\n");
+    //printf("End of Instruction Table.\n");
 
     //Save "encrypted" instruction tables to file    
     saveInstructionTable(1, atable, numfeatures);
     saveInstructionTable(2, btable, numfeatures);
-    printf("Updated Alpha-Bravo Tables Written to file\n");
+    //printf("Updated Alpha-Bravo Tables Written to file\n");
 
     //Run "ProcessHistory" to verify saved history before exiting:
     status = process_history(tempHistory, newhpwd);
@@ -396,7 +396,7 @@ void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password
 	//Here is the equivalent of what we computed if using 'int' instead of gmp/mpz
 	//alpha[i-1] = F(PR(r, i*2)) + ( GR(r, i*2, password) % q );
     }
-    printf("Alpha Column initialized.\n");
+    //printf("Alpha Column initialized.\n");
 }
 
 //Function for calculating all alpha column values as valid
@@ -422,7 +422,7 @@ void computeBravo(Polynomial Poly, mpz_t* bravo, int numfeatures, char* password
 	//Here is the equivalent of what we computed if using 'int' instead of gmp/mpz
         //bravo[i-1] = PR(r, i*2+1) + ( GR(r, i*2+1, password) % q );
     }
-    printf("Bravo Column initialized.\n");
+    //printf("Bravo Column initialized.\n");
 }
 
 
@@ -574,7 +574,7 @@ void readInstructionTable(int col, mpz_t * table, int size) {
     //Open file for reading
     FILE *f;
     f = fopen(name, "r");
-    printf("File %s opened\n",name);
+    //printf("File %s opened\n",name);
 
     if (!f) {
  	printf("Input file not found\n");
@@ -604,14 +604,14 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     //Display password inputted and length
     printf("Password:>>>%s<<<\nLength: %d\n", password, pwdlen);
     //Display feature string
-    printf("Features: %s", feats);
+    //printf("Features: %s", feats);
     //Change feature string to integers and display
     numfeatures = str_to_ints(feats, features);
     printf("Number of Features: %d\n",numfeatures);
     int i;
-    printf("Features Stored as Integers:\n|");
+    //printf("Features Stored as Integers:\n|");
     for ( i = 0; i < numfeatures; i++) {
-        printf(" %d |",features[i]);
+        //printf(" %d |",features[i]);
     }
 
     /* Step 2: Read instruction table in from file; prepare 
@@ -624,10 +624,10 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
 	mpz_init(tableB[i]);
 	mpz_init(currentTable[i]);
     }
-    printf("\nReading tables from file...\n");
+    //printf("\nReading tables from file...\n");
     readInstructionTable(1, tableA, numfeatures);
     readInstructionTable(2, tableB, numfeatures);
-    printf("End of read.\n");
+    //printf("End of read.\n");
 /*    printf("Instruction Table:\n");
     for (i = 0; i < numfeatures; i++ ) {
         gmp_printf("{%d, %Zd, %Zd}\n",i+1,tableA[i],tableB[i]);
@@ -636,7 +636,7 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
 
     /* Step 3: Build instruction table based on values found
        in feature vectors inputted */
-    printf("Building instruction table...\n");
+    //printf("Building instruction table...\n");
     /* map will store where we retrieved each feature value; 
        1 depicts an 'alpha' value; 2 depicts a 'bravo' value */
     int map[numfeatures];
@@ -644,14 +644,14 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
 	if ( features[i] < ti ) {
 	    mpz_set(currentTable[i], tableA[i]);
 	    map[i] = 1;
-	    printf("Table[%d]: Alpha|%d\n",i+1,map[i]);
+	    //printf("Table[%d]: Alpha|%d\n",i+1,map[i]);
 	} else {
 	    mpz_set(currentTable[i], tableB[i]);
             map[i] = 2;  
-	    printf("Table[%d]: Bravo|%d\n",i+1,map[i]);
+	    //printf("Table[%d]: Bravo|%d\n",i+1,map[i]);
 	}
     }
-    printf("Table Constructed\n");
+    //printf("Table Constructed\n");
 
     /* Step 4: Decrypt current instruction table using r and 
        password; then use lagrange to compute hpwd */
@@ -677,10 +677,10 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
         mpf_set_z(ytableCf[i], ytableC[i]);
     }
     //Now, compute hpwd using lagrange:
-    printf("Computing Lagrange...\n");
+    //printf("Computing Lagrange...\n");
     Lagrange(computedHpwd, numfeatures, xtableCf, ytableCf);
     computedHpwd2 = Xround(computedHpwd);
-    printf("Computed Hpwd: %ld\n",computedHpwd2);
+    //printf("Computed Hpwd: %ld\n",computedHpwd2);
 
     /* Step 5: Using computed Hpwd to attempt to decrypt history
        file; unsuccesful decryption means either the password or 
@@ -909,12 +909,12 @@ int initProgram(char* argv[], mpz_t q, mpz_t r) {
             i = numfeatures - 2;
 	}
     }
-    printf("End of Instruction Table.\n\n");
+    //printf("End of Instruction Table.\n\n");
 
     //Save "encrypted" instruction tables to file    
     saveInstructionTable(1, alphatable, numfeatures);
     saveInstructionTable(2, bravotable, numfeatures);
-    printf("Alpha-Bravo Tables Written to file\n");
+    //printf("Alpha-Bravo Tables Written to file\n");
     
 
     /* FIFTH, verify instruction table; we will do this by "decrypting" 
