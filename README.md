@@ -13,4 +13,11 @@ gcc server.c -lcrypto -lgmp -lm
 Then, to execute: 
 ./a.out input.txt 
 
- 
+Instructions for Compiling and Running Program:
+
+1.A) Clone Repository from github
+    $git clone https://github.com/jlr84/cs6238-pwd-hardening.git
+
+1.B) If not cloning from github, unzip/extract files to folder
+
+2) 
