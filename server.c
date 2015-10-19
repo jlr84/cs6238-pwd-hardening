@@ -31,12 +31,10 @@
 
 
 //Program Constants:
-char const historyFolderLocation[] = "./history"; // ensure path here is also on below line
-char const historyFilePath[] = "./history/historyfile"; // ensure path matches above line
-char const alphaPath[] = "./history/alphatable"; 
-char const bravoPath[] = "./history/bravotable";
-char const validationString[] = "VALID\n";
-char const endFileString[] = "END_OF_FILE\n";
+char const historyFolderLocation[] = "./history"; //ensure this matches below lines
+char const historyFilePath[] = "./history/historyfile"; //ensure path matches above
+char const alphaPath[] = "./history/alphatable"; //ensure path matches above
+char const bravoPath[] = "./history/bravotable"; //ensure path matches above
 int const historyFileSize = 1200;
 
 
@@ -80,11 +78,12 @@ int createFreshHistory(long hpwd) {
 
 
 // Function processing history file stored in fixed location 
-int process_history(history currentHistory, long hpwd) {
+int process_history(history tempHistory, long hpwd) {
     int history_status = 0;
     FILE* inputfile = fopen(historyFilePath, "r");
     unsigned char decryptedtextbuffer[5000];
     unsigned char *decryptedtextptr = (unsigned char *)&decryptedtextbuffer;
+//    history tempHistory;
 
     printf("\nProcessing History File:\n");
 
@@ -97,7 +96,7 @@ int process_history(history currentHistory, long hpwd) {
         createFreshHistory(hpwd);
         inputfile = fopen(historyFilePath, "r");
     }
-    printf("Decrypt HPWD: %lu\n", hpwd); 
+    printf("Decrypt HPWD: %ld\n", hpwd); 
     decrypt_file_to_buf(inputfile, decryptedtextptr, hpwd);
     char mybufin[5000];
         
@@ -110,32 +109,171 @@ int process_history(history currentHistory, long hpwd) {
     char **tokens;
     tokens = str_split(mybufin, '\n');
     if (tokens) {
-        currentHistory.validation = *(tokens + 0);
-        currentHistory.size = *(tokens + 1);
-        currentHistory.line1 = *(tokens + 2);
-        currentHistory.line2 = *(tokens + 3);
-        currentHistory.line3 = *(tokens + 4);
-        currentHistory.line4 = *(tokens + 5);
-        currentHistory.line5 = *(tokens + 6);
-        currentHistory.end = *(tokens + 7);
+        tempHistory.validation = *(tokens + 0);
+        tempHistory.size = *(tokens + 1);
+        tempHistory.line1 = *(tokens + 2);
+        tempHistory.line2 = *(tokens + 3);
+        tempHistory.line3 = *(tokens + 4);
+        tempHistory.line4 = *(tokens + 5);
+        tempHistory.line5 = *(tokens + 6);
+        tempHistory.end = *(tokens + 7);
     }
  
-    //Print to screen for validation/testing
-    printf("CurrentHistory Stored Successfully: \nVAL:%s\nSIZE:%s\nLN1:%s\nLN2:%s\nLN3:%s\nLN4:%s\nLN5:%s\nEND:%s\n",currentHistory.validation,currentHistory.size,currentHistory.line1,currentHistory.line2,currentHistory.line3,currentHistory.line4,currentHistory.line5,currentHistory.end);
-
     //Since the file opened successfully, close it here
     fclose(inputfile);
         
     /* Compare Results to validate proper formatting; if invalid formatting, 
        assume corrupted file or incorrect decrypting */
-    if ( strcmp(currentHistory.validation,"VALID") == 0 && strcmp(currentHistory.end,"END_OF_FILE") == 0 ) {
-        printf("\nHistory File Validated Successfullly\n");
+    if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
+        printf("\nHistory File Validated Successfully:\n");
+        history_status = 1;
+        //Print to screen for validation/testing
+        printf("VAL:%s\nSIZE:%s\nLN1:%s\nLN2:%s\nLN3:%s\nLN4:%s\nLN5:%s\nEND:%s\n",tempHistory.validation,tempHistory.size,tempHistory.line1,tempHistory.line2,tempHistory.line3,tempHistory.line4,tempHistory.line5,tempHistory.end);
     } else {
         printf("\nHistory File Error, or Invalid Decryption\n");
         history_status = 222;
     }
     return history_status;
 }
+
+//Function for updating history file with values from current successful login
+void update_history(history tempHistory, long hpwd, char* feats, int numfeatures) {
+
+    /* First, Open history file, decrypt, and create new 
+       history struct */
+    FILE* inputfile = fopen(historyFilePath, "r");
+    unsigned char decryptedtextbuffer[5000];
+    unsigned char *decryptedtextptr = (unsigned char *)&decryptedtextbuffer;
+    decrypt_file_to_buf(inputfile, decryptedtextptr, hpwd);
+    char mybufin[5000];
+    //Copy decryptedbuffer to mybufin[]
+    strcpy(mybufin, decryptedtextptr);
+    //Tokenize our input buffer
+    char **tokens;
+    tokens = str_split(mybufin, '\n');
+    if (tokens) {
+        tempHistory.validation = *(tokens + 0);
+        tempHistory.size = *(tokens + 1);
+        tempHistory.line1 = *(tokens + 2);
+        tempHistory.line2 = *(tokens + 3);
+        tempHistory.line3 = *(tokens + 4);
+        tempHistory.line4 = *(tokens + 5);
+        tempHistory.line5 = *(tokens + 6);
+        tempHistory.end = *(tokens + 7);
+    }
+    fclose(inputfile);
+    // Compare Results to validate formatting 
+    if ( strcmp(tempHistory.validation,"VALID") == 0 && strcmp(tempHistory.end,"END_OF_FILE") == 0 ) {
+        printf("\nHistory File re-validated... ");
+    }
+
+
+    /* Second, Update history file data; this will update
+       differently depending on if we have h (h=5) successful
+       login attempts (including current attemp) */
+    printf("Updating history\n"); 
+    int status;
+//    printf("History Size: %s\n",tempHistory.size);
+    int hsize = tempHistory.size[0] - '0';
+//    printf("Size: %d",hsize); 
+
+    //Open history file for writing
+    FILE* hfile = fopen(historyFilePath, "w+");
+
+    /* If there have been fewer than h (h=5) successful logins
+       then we do not need to compute the mean or standard
+       deviation; we simply need to update the history and
+       re-save the information (encrypted) to disk */
+    if ( hsize <= 3 ) {
+        //increase size by one
+	hsize = hsize + 1;
+        //convert size to string for printing
+ 	char strsize[5];
+	sprintf(strsize, "%d", hsize);
+	//Compile output buffer
+        unsigned char mybuf[1000] = "VALID\n";
+        strcat(mybuf, strsize);
+  	strcat(mybuf, "\n");
+        strcat(mybuf, feats);
+        strcat(mybuf, tempHistory.line1);
+	strcat(mybuf, "\n");
+        strcat(mybuf, tempHistory.line2);
+	strcat(mybuf, "\n");
+        strcat(mybuf, tempHistory.line3);
+	strcat(mybuf, "\n");
+        strcat(mybuf, tempHistory.line4);
+	strcat(mybuf, "\n");
+	strcat(mybuf, "END_OF_FILE\n\0");
+        //Pad to length=1000
+        unsigned char filler[]="aaa\0";
+        int i; 
+        int length = strlen(mybuf);
+        for (i = length; i < 1000; i = i + 1) {
+	    mybuf[i] = filler[1];
+	}
+	mybuf[999] = filler[3];
+	//Create pointer to buffer just created
+	unsigned char *mybufptr = (unsigned char*)&mybuf;
+        //Encrypt buffer and write to file
+        status = encrypt_buf_to_file(mybufptr, hfile, hpwd);
+    } else { 
+	/* ELSE, if size >3, then this validation will guarantee 
+           5 previous successful logins; as such, we need to 
+           calculate mean/standard deviation and do additional
+           processing here */
+	//Create integer array for each feature vector
+        printf("Features: \n%s%s\n%s\n%s\n%s\n", feats, tempHistory.line1, tempHistory.line2, tempHistory.line3, tempHistory.line4);
+        int features1[numfeatures];
+	int features2[numfeatures];
+	int features3[numfeatures];
+	int features4[numfeatures];
+	int features5[numfeatures];
+        int num,j;
+        num = str_to_ints(feats, features1);
+        num = str_to_ints(tempHistory.line1, features2);
+        num = str_to_ints(tempHistory.line2, features3);
+        num = str_to_ints(tempHistory.line3, features4);
+        num = str_to_ints(tempHistory.line4, features5);
+/*        printf("Features Stored as Integers.\n");
+        printf("01:|");
+        for ( j = 0; j < numfeatures; j++) {
+            printf(" %d |",features1[j]);
+        }
+        printf("\n02:|");
+        for ( j = 0; j < numfeatures; j++) {
+            printf(" %d |",features2[j]);
+        }
+        printf("\n03:|");
+        for ( j = 0; j < numfeatures; j++) {
+            printf(" %d |",features3[j]);
+        }
+        printf("\n04:|");
+        for ( j = 0; j < numfeatures; j++) {
+            printf(" %d |",features4[j]);
+        }
+        printf("\n05:|");
+        for ( j = 0; j < numfeatures; j++) {
+            printf(" %d |",features5[j]);
+        }
+*/
+	//For each feature, compute mean and standard deviation
+	float sdevs[numfeatures];
+	float means[numfeatures];
+        calculate_sdev_mean(features1, features2, features3, features4, features5, sdevs, means, numfeatures);
+	printf("\nStandard Deviation and Mean Calculated.\n");
+	for ( j = 0; j < numfeatures; j++ ) {
+            printf("%2d SD: %.2f |MN: %.2f\n",j+1,sdevs[j],means[j]);
+    	}
+    } 
+
+    //Close history file
+    fclose(hfile);
+    
+    //Run "ProcessHistory" to verify saved history before exiting:
+    status = process_history(tempHistory, hpwd);
+
+}
+
 
 //Function for calculating all alpha column values as valid
 void computeAlpha(Polynomial Poly, mpz_t* alpha, int numfeatures, char* password, mpz_t q, mpz_t r) {
@@ -335,7 +473,6 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     int ti = 10; // Given in project requirements
     int k = 2; // Given in project requirements
     int status = 0;
-    long hpwd;
     char password[200];
     int features[127]; 
     int numfeatures;
@@ -410,7 +547,7 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     mpf_t computedHpwd;
     mpf_init(computedHpwd);
     long computedHpwd2;
-    printf("Changing mpz to mpf\n");
+//    printf("Changing mpz to mpf\n");
     mpf_t xtableCf[numfeatures];
     mpf_t ytableCf[numfeatures];
     for ( i = 0; i < numfeatures; i++ ) {
@@ -418,8 +555,6 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
         mpf_init(ytableCf[i]);
         mpf_set_z(xtableCf[i], xtableC[i]);
         mpf_set_z(ytableCf[i], ytableC[i]);
-//        gmp_printf("xtablez[%d]: %Zd\n xtablef[%d]: %Ff\n",i,xtable[i],i,xtablef[i]);
-//        gmp_printf("ytablez[%d]: %Zd\n ytablef[%d]: %Ff\n",i,ytable[i],i,ytablef[i]);
     }
     //Now, compute hpwd using lagrange:
     printf("Computing Lagrange...\n");
@@ -427,15 +562,26 @@ int verifyPassword(char* pwd, char* feats, mpz_t q, mpz_t r) {
     computedHpwd2 = Xround(computedHpwd);
     printf("Computed Hpwd: %ld\n",computedHpwd2);
 
-    //ADD LOGIC HERE
+    /* Step 5: Using computed Hpwd to attempt to decrypt history
+       file; unsuccesful decryption means either the password or 
+       feature vectors (e.g., the computed hpwd) were incorrect */
+    //Declare current history struct
+    history currentHistory; 
+    //Process history file/attempt to decrypt (222 = failed)
+    status = process_history(currentHistory, computedHpwd2);
+    if (status == 222) { 
+        printf("Attempting 'simple error correction'...\n");
+	// ADD LOGIC for Simple Error Correction Here
+    } else if (status == 1) {
+	printf("Password Validated\n");
+        //Update History file and save to disk
+        update_history(currentHistory, computedHpwd2, feats, numfeatures); 
+        
+    } else {
+	printf("Unknown Error\n");
+    }
 
-    history currentHistory; 			//Declare current history struct
-//    status = process_history(currentHistory, hpwd);	//process history file
-
-    //ADD LOGIC HERE
-
-    return 1;
-
+    return status;
 }
 
 
@@ -480,7 +626,7 @@ int processInput(char* argv[], char* pwd, char* feats, mpz_t q, mpz_t r) {
             i = i + 1;
 
 	    //TEMPORARY TRUNCATION 
-	    if ( i == 3) { fclose(f); fclose(output); printf("ExitingEarly\n"); return status; } 
+	    if ( i == 14) { fclose(f); fclose(output); printf("ExitingEarly\n"); return status; } 
 
         }
         printf("End of input file.\n");
