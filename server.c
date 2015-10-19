@@ -1,6 +1,6 @@
 /* server.c
-   Author: James Roberts
-   CS6238 Project 1: Authenticated Encryption
+   CS6238, Project I, Password Hardening
+   Authors: James Roberts | Lei Zhang
 */
 #include <stdio.h>
 #include <stdlib.h>
